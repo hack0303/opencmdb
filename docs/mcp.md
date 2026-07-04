@@ -15,9 +15,11 @@ npm run dev:mcp    # MCP only (:3100)
 npm run mcp        # MCP only (alias)
 ```
 
-![dev] npm run dev 启动两个服务:
-- `[next]`  http://localhost:3000
-- `[mcp]`   http://localhost:3100
+| 服务 | 端口 | 访问 |
+|------|------|------|
+| Next.js | `:3000` | `http://localhost:3000` — 管理界面 |
+| SKILL.md | `:3000` | `http://localhost:3000/SKILL.md` — 项目功能描述 |
+| MCP | `:3100` | `http://127.0.0.1:3100/mcp` — AI 工具端点 |
 
 ## Endpoints
 
