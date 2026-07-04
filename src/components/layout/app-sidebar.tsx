@@ -69,7 +69,7 @@ export default function AppSidebar() {
                   item.items?.some((sub) => sub.url && pathname.startsWith(sub.url));
                 return item?.items && item?.items?.length > 0 ? (
                   <Collapsible
-                    key={item.title}
+                    key={`${item.title}-${isActive}`}
                     asChild
                     defaultOpen={item.isActive || isActive}
                     className='group/collapsible'
