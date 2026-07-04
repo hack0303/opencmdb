@@ -12,10 +12,12 @@ export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
 
     try {
       const res = await fetch('/api/auth/login', {
@@ -24,15 +26,18 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password })
       });
 
-      if (res.ok) {
+      const data = await res.json();
+
+      if (res.ok && data.success) {
         toast.success('Welcome to OpenCMDB');
-        // Full page redirect ensures middleware validates the session cookie
+        // Navigate to dashboard — cookie was already set by the server
         window.location.href = '/dashboard/assets';
       } else {
-        const data = await res.json();
+        setError(data.error || 'Login failed');
         toast.error(data.error || 'Login failed');
       }
     } catch {
+      setError('Network error — is the server running?');
       toast.error('Network error');
     } finally {
       setLoading(false);
@@ -74,6 +79,7 @@ export default function LoginPage() {
                 required
               />
             </div>
+            {error && <p className='text-sm text-destructive'>{error}</p>}
             <Button type='submit' className='w-full' isLoading={loading}>
               {loading ? 'Signing in...' : 'Sign in'}
             </Button>
