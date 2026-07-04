@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "opencmdb": {
+      "url": "http://127.0.0.1:3100/mcp",
+      "description": "OpenCMDB asset management — migration, DB query, build/lint"
+    }
+  }
+}
