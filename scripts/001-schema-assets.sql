@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS asset_templates (
 );
 
 -- 标签索引（GIN 用于数组包含查询）
-CREATE INDEX idx_asset_templates_tags ON asset_templates USING GIN (tags);
+CREATE INDEX idx_asset_templates_tags_gin ON asset_templates USING GIN (tags);
 CREATE INDEX idx_asset_templates_category ON asset_templates (category);
 
 -- ──────────────────────────────────────────────
@@ -73,17 +73,17 @@ CREATE TABLE IF NOT EXISTS asset_instances (
 -- 索引
 CREATE INDEX idx_asset_instances_template ON asset_instances (template_id);
 CREATE INDEX idx_asset_instances_state ON asset_instances (current_state);
-CREATE INDEX idx_asset_instances_tags ON asset_instances USING GIN (tags);
+CREATE INDEX idx_asset_instances_tags_gin ON asset_instances USING GIN (tags);
 
 -- JSONB 索引：支持对 attributes 字段的高效查询
-CREATE INDEX idx_asset_instances_attrs ON asset_instances USING GIN (attributes);
+CREATE INDEX idx_asset_instances_attrs_gin ON asset_instances USING GIN (attributes);
 
 -- 能力名称索引（GIN 表达式索引 → 支持 "查询具备 Payment 能力的资产"）
-CREATE INDEX idx_asset_instances_cap_names 
+CREATE INDEX idx_asset_instances_cap_names_gin 
     ON asset_instances USING GIN (jsonb_path_query_array(capabilities, '$.name'));
 
 -- 更新时间索引（排序用）
-CREATE INDEX idx_asset_instances_updated ON asset_instances (updated_at DESC);
+CREATE INDEX idx_asset_instances_updated_desc ON asset_instances (updated_at DESC);
 
 -- ──────────────────────────────────────────────
 -- 3. 自动更新 updated_at 触发器

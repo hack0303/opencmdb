@@ -57,30 +57,40 @@ echo " Database: $DB_NAME"
 echo " User:     $DB_USER"
 echo "═══════════════════════════════════════════"
 
-# ── 1. Schema ──
-if [ "$SEED_ONLY" = false ]; then
-    SCHEMA_FILE="$MIGRATIONS_DIR/001-schema-assets.sql"
+# ── Discover and run all migration files ──
+SQL_FILES=$(ls "$MIGRATIONS_DIR"/[0-9][0-9][0-9]-*.sql 2>/dev/null | sort)
+
+if [ -z "$SQL_FILES" ]; then
+    echo "⚠ No migration files found"
+    exit 1
+fi
+
+TOTAL=$(echo "$SQL_FILES" | wc -l)
+IDX=0
+
+for SQL_FILE in $SQL_FILES; do
+    IDX=$((IDX + 1))
+    BASE="$(basename "$SQL_FILE")"
+
+    if [ "$SEED_ONLY" = true ] && echo "$BASE" | grep -qv 'seed'; then
+        echo "⏭ [$IDX/$TOTAL] $BASE (skipped: seed-only mode)"
+        continue
+    fi
+    if [ "$SCHEMA_ONLY" = true ] && echo "$BASE" | grep -q 'seed'; then
+        echo "⏭ [$IDX/$TOTAL] $BASE (skipped: schema-only mode)"
+        continue
+    fi
+
     echo ""
-    echo "▶ [1/2] Applying schema: $(basename "$SCHEMA_FILE")"
+    echo "▶ [$IDX/$TOTAL] Applying: $BASE"
 
     if [ "$DRY_RUN" = true ]; then
-        echo "  [DRY-RUN] Would execute:"
-        head -5 "$SCHEMA_FILE"
-        echo "  ... (truncated)"
+        echo "  [DRY-RUN] Would execute $BASE"
     else
-        $PSQL_CMD -f "$SCHEMA_FILE"
-        echo "  ✅ Schema applied"
+        $PSQL_CMD -f "$SQL_FILE"
+        echo "  ✅ $BASE applied"
     fi
-fi
-
-# ── 2. Seed Data (if schema-only is not set) ──
-if [ "$SCHEMA_ONLY" = false ] && [ "$SEED_ONLY" = false ]; then
-    echo ""
-    echo "▶ [2/2] Schema + seed data applied"
-elif [ "$SEED_ONLY" = true ]; then
-    echo ""
-    echo "▶ Seed data applied"
-fi
+done
 
 echo ""
 echo "═══════════════════════════════════════════"

@@ -4,7 +4,7 @@
 // Usage: node scripts/migrate.mjs
 // ═══════════════════════════════════════════════════════════
 
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
@@ -33,13 +33,23 @@ async function runMigration() {
     await client.connect();
     console.log('\n✓ Connected to database');
 
-    // Read and execute SQL
-    const sqlPath = resolve(__dirname, '001-schema-assets.sql');
-    const sql = readFileSync(sqlPath, 'utf-8');
+    // Discover and run all migration SQL files in order
+    const sqlFiles = readdirSync(__dirname)
+      .filter((f) => /^\d{3}-.+\.sql$/.test(f))
+      .sort();
 
-    console.log('▶ Applying schema...');
-    await client.query(sql);
-    console.log('✓ Schema applied successfully');
+    if (sqlFiles.length === 0) {
+      console.log('⚠ No migration files found');
+      return;
+    }
+
+    for (const file of sqlFiles) {
+      const sqlPath = resolve(__dirname, file);
+      const sql = readFileSync(sqlPath, 'utf-8');
+      console.log(`▶ [${file}] Applying...`);
+      await client.query(sql);
+      console.log(`✓ ${file} applied`);
+    }
 
     // Verify
     const { rows: tables } = await client.query(
