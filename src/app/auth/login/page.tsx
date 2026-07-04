@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,7 +9,6 @@ import { Icons } from '@/components/icons';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,8 +26,8 @@ export default function LoginPage() {
 
       if (res.ok) {
         toast.success('Welcome to OpenCMDB');
-        router.push('/dashboard/assets');
-        router.refresh();
+        // Full page redirect ensures middleware validates the session cookie
+        window.location.href = '/dashboard/assets';
       } else {
         const data = await res.json();
         toast.error(data.error || 'Login failed');
