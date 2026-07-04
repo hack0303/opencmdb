@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
-import SignInViewPage from '@/features/auth/components/sign-in-view';
+import { redirect } from 'next/navigation';
+import { getSession } from '@/lib/auth';
 
 export const metadata: Metadata = {
   title: 'Authentication | Sign In',
@@ -7,5 +8,8 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  return <SignInViewPage />;
+  const user = await getSession();
+  if (user) redirect('/dashboard/assets');
+  // Will render login page in the [login] route
+  redirect('/auth/login');
 }

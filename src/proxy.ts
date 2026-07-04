@@ -1,16 +1,57 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
-import { NextRequest } from 'next/server';
+// ═══════════════════════════════════════════════════════════
+// Middleware — Auth Protection
+// ═══════════════════════════════════════════════════════════
+// Protects /dashboard/* routes, redirects to /auth/login
+// ═══════════════════════════════════════════════════════════
 
-const isProtectedRoute = createRouteMatcher(['/dashboard(.*)']);
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { jwtVerify } from 'jose';
 
-export default clerkMiddleware(async (auth, req: NextRequest) => {
-  if (isProtectedRoute(req)) await auth.protect();
-});
+const SECRET = new TextEncoder().encode(
+  process.env.AUTH_SECRET || 'opencmdb-dev-secret-key-change-in-production-2024'
+);
+
+const publicPaths = ['/auth/login', '/api/auth/login'];
+
+export default async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Allow public paths
+  if (publicPaths.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
+
+  // Protect dashboard and API routes (except public ones)
+  if (pathname.startsWith('/dashboard') || pathname.startsWith('/api/')) {
+    const token = request.cookies.get('session')?.value;
+
+    if (!token) {
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      return NextResponse.redirect(new URL('/auth/login', request.url));
+    }
+
+    try {
+      await jwtVerify(token, SECRET);
+      return NextResponse.next();
+    } catch {
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      const response = NextResponse.redirect(new URL('/auth/login', request.url));
+      response.cookies.delete('session');
+      return response;
+    }
+  }
+
+  return NextResponse.next();
+}
+
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
     '/(api|trpc)(.*)'
   ]
 };

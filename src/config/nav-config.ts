@@ -91,6 +91,25 @@ export const navGroups: NavGroup[] = [
         shortcut: ['c', 'c'],
         isActive: false,
         items: []
+      },
+      {
+        title: 'Assets',
+        url: '/dashboard/assets',
+        icon: 'asset',
+        shortcut: ['a', 'a'],
+        isActive: false,
+        items: [
+          {
+            title: 'All Assets',
+            url: '/dashboard/assets',
+            icon: 'asset'
+          },
+          {
+            title: 'Templates',
+            url: '/dashboard/assets/templates',
+            icon: 'stack2'
+          }
+        ]
       }
     ]
   },

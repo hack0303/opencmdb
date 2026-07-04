@@ -1,17 +1,11 @@
-'use client';
-
 import PageContainer from '@/components/layout/page-container';
-import { OrganizationProfile } from '@clerk/nextjs';
-import { teamInfoContent } from '@/config/infoconfig';
 
-export default function TeamPage() {
+export default async function Page() {
   return (
-    <PageContainer
-      pageTitle='Team Management'
-      pageDescription='Manage your workspace team, members, roles, security and more.'
-      infoContent={teamInfoContent}
-    >
-      <OrganizationProfile />
+    <PageContainer pageTitle='Team' pageDescription='Team management (dev mode)'>
+      <div className='text-muted-foreground p-8 text-center'>
+        Team management is disabled in development mode.
+      </div>
     </PageContainer>
   );
 }
