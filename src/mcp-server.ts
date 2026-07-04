@@ -151,6 +151,63 @@ const tools: Tool[] = [
       required: ['id']
     }
   },
+  {
+    name: 'create_template',
+    description:
+      'Create a new asset template. Provide name, category (hardware/software/storage), schema (JSON Schema), defaultStateMapping, defaultCapabilities, tags, description.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Template name (e.g. Redis Cache)' },
+        category: { type: 'string', description: 'One of: hardware, software, storage' },
+        description: { type: 'string', description: 'What this asset type does' },
+        schema: {
+          type: 'object',
+          description: 'JSON Schema defining valid attributes for instances'
+        },
+        default_state_mapping: {
+          type: 'object',
+          description: 'Default state definitions: { states, initialState, conditions }'
+        },
+        default_capabilities: {
+          type: 'array',
+          items: { type: 'object' },
+          description: 'Array of capability definitions'
+        },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Classification tags' }
+      },
+      required: ['name', 'category', 'schema']
+    }
+  },
+  {
+    name: 'update_template',
+    description: 'Update an existing template. Only provided fields are changed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Template ID to update' },
+        name: { type: 'string' },
+        category: { type: 'string', description: 'hardware, software, or storage' },
+        description: { type: 'string' },
+        schema: { type: 'object', description: 'JSON Schema' },
+        default_state_mapping: { type: 'object' },
+        default_capabilities: { type: 'array', items: { type: 'object' } },
+        tags: { type: 'array', items: { type: 'string' } }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'delete_template',
+    description: 'Delete a template by ID.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Template ID to delete' }
+      },
+      required: ['id']
+    }
+  },
 
   // ═══════════ Database Utilities ═══════════
 
@@ -322,6 +379,67 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       try {
         const tmpl = await service.getTemplateById(id);
         return tmpl ? JSON.stringify(tmpl, null, 2) : `❌ Template "${id}" not found.`;
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'create_template': {
+      const name = args.name as string;
+      const category = args.category as string;
+      const schema = args.schema as Record<string, unknown>;
+      if (!name || !category || !schema) {
+        return '❌ name, category, and schema are required.';
+      }
+      try {
+        const payload: Record<string, unknown> = {
+          name,
+          category,
+          schema,
+          description: (args.description as string) || '',
+          tags: (args.tags as string[]) || [],
+          defaultStateMapping: args.default_state_mapping || {
+            states: ['UNKNOWN'],
+            initialState: 'UNKNOWN'
+          },
+          defaultCapabilities: args.default_capabilities || []
+        };
+        const tmpl = await service.createTemplate(payload as any);
+        return JSON.stringify({ id: tmpl.id, name: tmpl.name, status: 'created' }, null, 2);
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'update_template': {
+      const id = args.id as string;
+      if (!id) return '❌ id is required.';
+      try {
+        const payload: Record<string, unknown> = {};
+        if (args.name !== undefined) payload.name = args.name;
+        if (args.category !== undefined) payload.category = args.category;
+        if (args.description !== undefined) payload.description = args.description;
+        if (args.schema !== undefined) payload.schema = args.schema;
+        if (args.default_state_mapping !== undefined)
+          payload.defaultStateMapping = args.default_state_mapping;
+        if (args.default_capabilities !== undefined)
+          payload.defaultCapabilities = args.default_capabilities;
+        if (args.tags !== undefined) payload.tags = args.tags;
+        const tmpl = await service.updateTemplate(id, payload as any);
+        return tmpl
+          ? JSON.stringify({ id: tmpl.id, status: 'updated' }, null, 2)
+          : `❌ Template "${id}" not found.`;
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'delete_template': {
+      const id = args.id as string;
+      if (!id) return '❌ id is required.';
+      try {
+        await service.deleteTemplate(id);
+        return JSON.stringify({ id, status: 'deleted' }, null, 2);
       } catch (err: any) {
         return `❌ ${err.message}`;
       }

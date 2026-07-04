@@ -7,8 +7,11 @@ description: |
   "数据库迁移"、"查看资产"、"AI 视图"时触发。
 description_for_model: |
   OpenCMDB is a dynamic meta-model asset registration and management platform.
-  It exposes a remote MCP server (Streamable HTTP, port 3100) with tools for
-  database migration, read-only SQL queries, schema inspection, and build/lint.
+  It exposes a remote MCP server (Streamable HTTP, port 3100) with 15 tools:
+  Asset CRUD (get_assets, get_asset, register_asset, update_asset, delete_asset),
+  Template CRUD (get_templates, get_template, create_template, update_template, delete_template),
+  SQL query (sql_query, list_tables, describe_table),
+  Migration (run_migration, list_migrations).
 
   MCP endpoint: http://192.168.1.14:3100/mcp
   Web UI:       http://192.168.1.14:3000
@@ -67,19 +70,25 @@ All subsequent requests require `Mcp-Session-Id` + `Mcp-Protocol-Version` header
 | `/tools` | GET | List all tools (JSON) |
 | `/mcp` | POST | MCP JSON-RPC |
 
-## MCP Tools
+## MCP Tools (15 tools)
 
 | Tool | Parameters | Description |
 |------|-----------|-------------|
-| `run_migration` | `seed_only`, `schema_only`, `dry_run` | Apply SQL migrations |
-| `query_database` | `sql` (SELECT/WITH), `params` | Read-only SQL queries |
-| `list_tables` | — | List all tables with row counts |
+| `get_assets` | `template_id`, `state`, `search`, `limit` | List asset instances |
+| `get_asset` | `id` | Get single asset by ID |
+| `register_asset` | `template_id`, `name`, `attributes`, `tags` | Register new asset |
+| `update_asset` | `id`, `attributes`, `current_state`, `tags` | Update existing asset |
+| `delete_asset` | `id` | Delete asset |
+| `get_templates` | `category` | List templates |
+| `get_template` | `id` | Get single template |
+| `create_template` | `name`, `category`, `schema`, `tags` | Create new template |
+| `update_template` | `id`, `name`, `category`, `schema` | Update template |
+| `delete_template` | `id` | Delete template |
+| `sql_query` | `sql` (SELECT/WITH), `params` | Read-only SQL queries |
+| `list_tables` | — | List all tables |
 | `describe_table` | `table` | Columns, types, indexes |
-| `run_dev_server` | — | Start Next.js dev server |
-| `build_project` | — | Run production build |
-| `lint_project` | — | Run linter |
-| `read_migration_file` | `file` | Read a migration SQL file |
-| `list_migration_files` | — | List all migration files |
+| `run_migration` | `seed_only`, `schema_only`, `dry_run` | Apply SQL migrations |
+| `list_migrations` | — | List migration files |
 
 ## Database Schema
 
@@ -175,9 +184,7 @@ curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
   }'
 ```
 
-### 4. Query Templates
-
-Find the PostgreSQL Database template schema:
+### 4. List Templates
 
 ```bash
 curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
@@ -189,10 +196,8 @@ curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
     "jsonrpc": "2.0",
     "method": "tools/call",
     "params": {
-      "name": "query_database",
-      "arguments": {
-        "sql": "SELECT id, name, schema_def FROM asset_templates WHERE name = '"'"'PostgreSQL Database'"'"'"
-      }
+      "name": "get_templates",
+      "arguments": {}
     },
     "id": 3
   }'
@@ -200,8 +205,6 @@ curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
 
 ### 5. Register a New Asset
 
-Insert a PostgreSQL database instance:
-
 ```bash
 curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
   -H "Content-Type: application/json" \
@@ -212,24 +215,27 @@ curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
     "jsonrpc": "2.0",
     "method": "tools/call",
     "params": {
-      "name": "query_database",
+      "name": "register_asset",
       "arguments": {
-        "sql": "INSERT INTO asset_instances (id, template_id, name, description, attributes, tags) VALUES ($1, $2, $3, $4, $5::jsonb, $6::text[]) ON CONFLICT (id) DO NOTHING",
-        "params": [
-          "ast-db-002",
-          "tmpl-db-001",
-          "cland_base_dict",
-          "基础字典库",
-          "{\"version\": \"16\", \"host\": \"192.168.1.9\", \"port\": 5432, \"rw_user\": \"opencmdb_rw\", \"ro_user\": \"opencmdb_ro\", \"connectionString\": \"jdbc:postgresql://192.168.1.9:5432/cland_base_dict\"}",
-          "{database,postgresql,production}"
-        ]
+        "template_id": "tmpl-db-001",
+        "name": "cland_base_dict",
+        "attributes": {
+          "version": "16",
+          "host": "192.168.1.9",
+          "port": 5432,
+          "rw_user": "opencmdb_rw",
+          "ro_user": "opencmdb_ro",
+          "connectionString": "jdbc:postgresql://192.168.1.9:5432/cland_base_dict"
+        },
+        "tags": ["database", "postgresql", "production"],
+        "description": "基础字典库"
       }
     },
     "id": 4
   }'
 ```
 
-### 6. Verify Registered Assets
+### 6. Query Registered Assets
 
 ```bash
 curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
@@ -241,9 +247,9 @@ curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
     "jsonrpc": "2.0",
     "method": "tools/call",
     "params": {
-      "name": "query_database",
+      "name": "get_assets",
       "arguments": {
-        "sql": "SELECT id, name, current_state, attributes->>'"'"'host'"'"' AS host FROM asset_instances ORDER BY name"
+        "search": "cland"
       }
     },
     "id": 5
