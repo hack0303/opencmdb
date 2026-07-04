@@ -8,6 +8,10 @@ description_for_model: |
   This skill describes how to use the OpenCMDB asset registration platform.
   Use it when the user asks how to manage assets, create templates,
   register instances, use AI views, or navigate the platform.
+  This project has a remote MCP server on port 3100 with tools for
+  database migration, read-only SQL queries, schema inspection,
+  build/lint, and migration file management.
+  MCP endpoint: http://127.0.0.1:3100/mcp
 allowed-tools: Bash(npm run dev), Bash(npm run build)
 ---
 
@@ -189,6 +193,67 @@ This returns all assets tagged "payment" or with payment-related capabilities.
 | Template List | `/dashboard/assets/templates` | View, edit templates |
 | New Template | `/dashboard/assets/templates/new` | Define a new asset type |
 | Login | `/auth/login` | Sign in |
+
+---
+
+---
+
+## MCP Server (AI Tools)
+
+OpenCMDB provides a remote MCP server for AI assistants. It runs on port `:3100`
+(started automatically with `npm run dev` via concurrently).
+
+### Connection
+
+| Client | Config |
+|--------|--------|
+| Claude Code | `.mcp.json`: `"url": "http://127.0.0.1:3100/mcp"` |
+| Cursor | `.cursor/mcp.json`: same as above |
+| Any MCP client | `http://127.0.0.1:3100/mcp` |
+
+### Available Tools
+
+| Tool | What it does |
+|------|-------------|
+| `run_migration` | Apply pending SQL migrations (`seed_only`, `schema_only`, `dry_run`) |
+| `query_database` | Execute read-only SQL queries (SELECT / WITH) |
+| `list_tables` | Show all tables with row counts |
+| `describe_table` | Show columns, types, indexes for a table |
+| `run_dev_server` | Start Next.js dev server in background |
+| `build_project` | Run `npm run build` |
+| `lint_project` | Run `npm run lint` |
+| `read_migration_file` | Read a migration `.sql` file |
+| `list_migration_files` | List all migration files in order |
+
+### Protocol Flow (Stateful)
+
+```
+1. POST /mcp  →  initialize          →  receive Mcp-Session-Id header
+2. POST /mcp  →  tools/list          →  list all 9 tools
+3. POST /mcp  →  tools/call          →  execute a tool
+```
+
+All subsequent requests include `Mcp-Session-Id` header from step 1.
+
+### Quick Test
+
+```bash
+# Health check
+curl http://127.0.0.1:3100/health
+
+# Tool list
+curl http://127.0.0.1:3100/tools
+```
+
+### MCP Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/tools` | GET | List all tools (JSON) |
+| `/mcp` | POST | MCP JSON-RPC endpoint |
+
+See `/mcp.md` for full documentation.
 
 ---
 
