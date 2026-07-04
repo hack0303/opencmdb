@@ -63,7 +63,13 @@ function buildWhereClause(
     }
   }
 
-  return [clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '', params];
+  // All queries filter out soft-deleted records by default
+  const deletedClause = 'a.deleted_at IS NULL';
+  const finalWhere =
+    clauses.length > 0
+      ? `WHERE ${deletedClause} AND ${clauses.join(' AND ')}`
+      : `WHERE ${deletedClause}`;
+  return [finalWhere, params];
 }
 
 // ──────────── Template Queries ────────────
@@ -130,7 +136,7 @@ export async function getTemplateById(id: string): Promise<AssetTemplate | null>
       tags,
       created_at AS "createdAt",
       updated_at AS "updatedAt"
-    FROM asset_templates WHERE id = $1`,
+    FROM asset_templates WHERE id = $1 AND deleted_at IS NULL`,
     [id]
   );
   return row as unknown as AssetTemplate | null;
@@ -219,7 +225,10 @@ export async function updateTemplate(
 }
 
 export async function deleteTemplate(id: string): Promise<boolean> {
-  await query('DELETE FROM asset_templates WHERE id = $1', [id]);
+  await query(
+    'UPDATE asset_templates SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL',
+    [id]
+  );
   return true;
 }
 
@@ -287,7 +296,7 @@ export async function getAssetById(id: string): Promise<AssetInstance | null> {
       capabilities, tags,
       created_at AS "createdAt",
       updated_at AS "updatedAt"
-    FROM asset_instances WHERE id = $1`,
+    FROM asset_instances WHERE id = $1 AND deleted_at IS NULL`,
     [id]
   );
   return row as unknown as AssetInstance | null;
@@ -379,7 +388,10 @@ export async function updateAsset(
 }
 
 export async function deleteAsset(id: string): Promise<boolean> {
-  await query('DELETE FROM asset_instances WHERE id = $1', [id]);
+  await query(
+    'UPDATE asset_instances SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL',
+    [id]
+  );
   return true;
 }
 
@@ -395,12 +407,12 @@ export async function queryByCapability(queryStr: string): Promise<AssetInstance
       created_at AS "createdAt",
       updated_at AS "updatedAt"
     FROM asset_instances
-    WHERE 
-      $1 ILIKE ANY(tags)
+    WHERE deleted_at IS NULL
+      AND ($1 ILIKE ANY(tags)
       OR EXISTS (
         SELECT 1 FROM jsonb_array_elements(capabilities) AS cap
         WHERE cap->>'name' ILIKE $1 OR cap->>'description' ILIKE $1
-      )
+      ))
     ORDER BY updated_at DESC`,
     [`%${queryStr}%`]
   );
@@ -409,7 +421,7 @@ export async function queryByCapability(queryStr: string): Promise<AssetInstance
 
 export async function getAllTags(): Promise<string[]> {
   const rows = await query<{ tag: string }>(
-    `SELECT DISTINCT unnest(tags) AS tag FROM asset_instances ORDER BY tag`
+    `SELECT DISTINCT unnest(tags) AS tag FROM asset_instances WHERE deleted_at IS NULL ORDER BY tag`
   );
   return rows.map((r) => r.tag);
 }
