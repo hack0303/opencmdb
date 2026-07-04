@@ -63,21 +63,23 @@ export default function AppSidebar() {
             <SidebarMenu>
               {group.items.map((item) => {
                 const Icon = item.icon ? Icons[item.icon] : Icons.logo;
+                const hasUrl = !!(item.url && item.url !== '#');
+                const isChildActive = item.items?.some(
+                  (sub) => sub.url && pathname.startsWith(sub.url)
+                );
+                const shouldOpen = item.isActive || isChildActive;
                 return item?.items && item?.items?.length > 0 ? (
                   <Collapsible
                     key={item.title}
                     asChild
-                    defaultOpen={
-                      item.isActive || pathname.startsWith(item.url !== '#' ? item.url : '/#')
-                    }
+                    defaultOpen={shouldOpen}
                     className='group/collapsible'
                   >
                     <SidebarMenuItem>
                       <CollapsibleTrigger asChild>
                         <SidebarMenuButton
                           tooltip={item.title}
-                          isActive={item.url !== '#' && pathname.startsWith(item.url)}
-                          onClick={() => router.push(item.url)}
+                          isActive={hasUrl && (pathname === item.url || isChildActive)}
                         >
                           {item.icon && <Icon />}
                           <span>{item.title}</span>
