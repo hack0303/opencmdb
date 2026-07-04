@@ -1,189 +1,203 @@
 ---
 name: opencmdb-asset-registration
 description: |
-  OpenCMDB — 动态元模型资产注册与管理平台。基于 Next.js 16 + shadcn/ui + PostgreSQL 16。
-  管理 IT 资产模板和实例（服务器、微服务、数据库、网关等设备资产）。
-  支持 JSONB 动态属性、状态映射和 AI 能力契约，实现"一表多型"。
+  OpenCMDB — 动态元模型资产注册与管理平台。
+  管理 IT 资产模板和实例（服务器、微服务、数据库、网关等）。
   当用户提到"资产注册"、"资产管理"、"CMDB"、"资产模板"、"硬件管理"时触发。
 description_for_model: |
-  This skill describes the OpenCMDB asset registration platform.
-  Use it when the user asks about asset features, navigation, or project setup.
-  The project is a CMDB (Configuration Management Database) with dynamic meta-model:
-  templates define asset types, instances hold concrete assets.
-  Features: asset CRUD, template management, AI-oriented asset views,
-  capability-based asset query, YAML/Markdown format export.
-allowed-tools: Bash(npm run dev), Bash(npm run build), Bash(npm run lint)
+  This skill describes how to use the OpenCMDB asset registration platform.
+  Use it when the user asks how to manage assets, create templates,
+  register instances, use AI views, or navigate the platform.
+allowed-tools: Bash(npm run dev), Bash(npm run build)
 ---
 
-# OpenCMDB — Asset Registration Platform
+# How to Use OpenCMDB
 
-OpenCMDB is a **Configuration Management Database (CMDB)** for IT infrastructure assets.
-It uses a dynamic meta-model: define asset types once as templates, then register any number of asset instances.
+OpenCMDB is a **Configuration Management Database (CMDB)** for IT infrastructure.
+It works in two layers:
 
----
-
-## What You Can Do
-
-### Asset Management
-| Feature | How |
-|---------|-----|
-| **List all assets** | `/dashboard/assets` — sortable, filterable data table |
-| **Register a new asset** | `/dashboard/assets/new` — multi-block form (basic info → attributes → state → capabilities) |
-| **Edit an asset** | Click asset name in list, or Actions → Edit |
-| **Delete an asset** | Actions → Delete (confirmation dialog) |
-| **AI-oriented view** | Actions → "AI View" or append `?view=ai` — shows YAML / Markdown format |
-
-### Template Management
-| Feature | How |
-|---------|-----|
-| **List templates** | `/dashboard/assets/templates` |
-| **Create template** | `/dashboard/assets/templates/new` — define JSON Schema, state mapping, capabilities |
-| **Edit template** | Click template in list |
-
-### Built-in Asset Types (5 templates)
-
-| Template | Category | Example Instance |
-|----------|----------|-----------------|
-| Quarkus Microservice | software | `cland-user-service-01` |
-| GPU Compute Node | hardware | `gpu-node-ai-01` |
-| PostgreSQL Database | storage | `cland-db-primary` |
-| APISIX Gateway | software | _add your own_ |
-| Qdrant Vector DB | storage | _add your own_ |
+1. **Templates** — define "what kind of asset" (e.g. "GPU Compute Node", "PostgreSQL Database")
+2. **Instances** — register specific assets (e.g. "gpu-node-ai-01", "cland-db-primary")
 
 ---
 
-## Authentication
-
-| Item | Value |
-|------|-------|
-| Login URL | `/auth/login` |
-| Username | `opencmdb` |
-| Password | `opencmdb` |
-| Session | JWT + httpOnly cookie, 24h expiry |
-| Protection | All `/dashboard/*` and `/api/*` routes require login |
-
----
-
-## Getting Started
+## Quick Start
 
 ```bash
-# 1. Install
-npm install
-
-# 2. Set up database
-cp .env.example.txt .env.local  # edit DB_HOST, DB_PASS
-node scripts/migrate.mjs        # creates tables + seed data
-
-# 3. Start dev (both Next.js + MCP server)
+# Start the platform
 npm run dev
 
-# Open http://localhost:3000 (or next available port)
-# Login: opencmdb / opencmdb
+# Open browser
+# http://localhost:3000
+
+# Login
+Username: opencmdb
+Password: opencmdb
 ```
+
+After login, you'll see the **Assets** list page.
 
 ---
 
-## Architecture Overview
+## Login
 
-```
-User (Browser)          Next.js App              PostgreSQL
-     │                      │                       │
-     ├── /dashboard/assets ─→  Server Component      │
-     │                       ├── prefetch data ──────→│
-     │                       │←── JSONB rows ────────│
-     │←── HTML with data ────┘                       │
-     │                                                │
-     ├── /dashboard/assets/new                         │
-     │   → Client form                                │
-     │   → Server Action ────────────────────────────→│
-     │   → redirect to list ←────────────────────────│
-```
-
-**Key files:**
-
-| Layer | File | Purpose |
-|-------|------|---------|
-| UI | `src/app/dashboard/assets/` | Page routes and layouts |
-| Feature | `src/features/assets/` | Components, forms, tables |
-| API types | `src/features/assets/api/types.ts` | Data contracts |
-| Service | `src/features/assets/api/service.ts` | **Swap this for your backend** |
-| Queries | `src/features/assets/api/queries.ts` | React Query options + key factories |
-| Mutations | `src/features/assets/api/mutations.ts` | Mutations + cache invalidation |
-| Auth | `src/lib/auth.ts` | JWT utilities |
-| Middleware | `src/proxy.ts` | Route protection |
-| DB connection | `src/lib/db.ts` | PostgreSQL pool |
+| Field | Value |
+|-------|-------|
+| URL | `/auth/login` |
+| Username | `opencmdb` |
+| Password | `opencmdb` |
 
 ---
 
-## AI Capabilities
+## Managing Assets
 
-Assets carry **capability contracts** — tool definitions that AI agents can use:
+### View All Assets
 
-```yaml
-capabilities:
-  - name: health_check
-    description: Check service health status
-    method: GET
-    endpoint: /health
-  - name: gpu_info
-    description: Query GPU utilization and memory
-    method: GET
-    endpoint: /nvidia-smi
-```
+Navigate to **Assets** in the sidebar (or `/dashboard/assets`).
 
-The **AI View** (`?view=ai`) strips internal IDs and timestamps, leaving:
-`name`, `description`, `state`, `attributes`, `capabilities`, `tags`
+The table shows all registered assets with:
+- Name, type (template), current state, tags
+- **Search** — type to filter by name/description/tags
+- **Sort** — click column headers
+- **Filter** — by state or template type
 
-Format: YAML (default) or Markdown table — toggle in the UI.
+### Register a New Asset
 
-**Capability-based query** — search assets by what they can do, not what they are:
+1. Click **"Register Asset"** button (top-right)
+2. Fill in the form across 4 sections:
+
+| Section | What to fill |
+|---------|-------------|
+| **① Basic Info** | Name, select a template, description, tags |
+| **② Attributes** | Properties defined by the template (e.g. CPU, GPU, RAM) |
+| **③ State Mapping** | States and health conditions (pre-filled from template) |
+| **④ Capabilities** | AI tools this asset provides (pre-filled from template) |
+
+3. Click **Create** — the new asset appears in the list
+
+### Edit an Asset
+
+1. Click the asset name in the list, OR
+2. Find the row → Actions → **Edit**
+
+### Delete an Asset
+
+1. Find the row → Actions → **Delete**
+2. Confirm in the dialog
+
+### View AI-Oriented Asset Info
+
+For an asset detail page:
+
+1. Actions → **"AI View"**, OR
+2. Append `?view=ai` to the URL
+
+The AI view removes internal IDs and timestamps, showing only:
+- `name`, `description` — what it is
+- `state` — current health
+- `attributes` — business properties
+- `capabilities` — what an AI can call
+- `tags` — classification
+
+**Switch format** between **YAML** (default) and **Markdown table** — then click **Copy**.
+
+---
+
+## Managing Templates
+
+Templates define asset types. The platform comes with 5 built-in templates:
+
+| Template | Category | Used For |
+|----------|----------|----------|
+| Quarkus Microservice | software | Java REST services |
+| GPU Compute Node | hardware | NVIDIA GPU servers |
+| PostgreSQL Database | storage | Relational databases |
+| APISIX Gateway | software | API gateway instances |
+| Qdrant Vector DB | storage | Vector databases |
+
+### Create a New Template
+
+1. Go to **Templates** → **New Template**
+2. Fill in:
+
+| Field | What to enter |
+|-------|-------------|
+| Name | e.g. "Redis Cache Cluster" |
+| Category | `hardware` / `software` / `storage` |
+| Description | What this asset type does |
+| Tags | Comma-separated, e.g. `cache, redis, database` |
+| Attributes Schema (JSON) | Define the JSON Schema for asset attributes |
+| State Mapping (JSON) | Define states + health conditions |
+| Capabilities (JSON) | Define AI tool contracts |
+
+### Edit a Template
+
+1. Go to **Templates** → click a template name
+2. Modify fields → **Save**
+
+---
+
+## Built-in Demo Data
+
+After running migrations, the system contains:
+
+**5 Templates** — Quarkus Microservice, GPU Compute Node, PostgreSQL Database, APISIX Gateway, Qdrant Vector DB
+
+**3 Instance Examples:**
+
+| Name | Type | State |
+|------|------|-------|
+| `cland-user-service-01` | Quarkus Microservice | RUNNING |
+| `gpu-node-ai-01` | GPU Node | ONLINE |
+| `cland-db-primary` | PostgreSQL | RUNNING |
+
+Use these as reference for registering your own assets.
+
+---
+
+## Capability Search (AI Query)
+
+Find assets by what they **do**, not what they **are**:
+
 ```
 /dashboard/assets?view=ai&q=payment
 ```
-Returns all assets tagged with "payment" or having payment-related capabilities.
+
+This returns all assets tagged "payment" or with payment-related capabilities.
 
 ---
 
-## Project Structure
+## Tips
 
-```
-src/
-├── app/dashboard/assets/    # Asset pages (list/create/edit/templates)
-├── app/api/auth/            # Auth API (login/logout/me)
-├── app/auth/login/          # Login page
-├── features/assets/         # Asset feature module
-├── components/ui/           # shadcn UI components
-├── lib/                     # DB, auth, utils
-└── styles/                  # CSS + themes
-scripts/
-├── 001-schema-assets.sql    # Database schema
-├── 002-seed-templates-extra.sql
-└── migrate.mjs              # Migration runner
-```
+| Task | How |
+|------|-----|
+| Find a specific asset | Use the search bar in the assets table |
+| See all templates at once | Go to Templates page |
+| Quick-register similar assets | Clone an existing asset and edit |
+| Export asset info for AI | Use AI View → Copy |
+| Clean up test data | Actions → Delete on any instance |
 
 ---
 
-## Development Commands
+## Key Pages
 
-```bash
-npm run dev        # Next.js (:3000) + MCP (:3100)
-npm run dev:next   # Next.js only
-npm run dev:mcp    # MCP server only
-npm run build      # Production build
-npm run lint       # Lint
-node scripts/migrate.mjs   # Database migration
-```
+| Page | URL | What you can do |
+|------|-----|----------------|
+| Asset List | `/dashboard/assets` | View, search, sort, filter all assets |
+| Register Asset | `/dashboard/assets/new` | Add a new asset |
+| Asset Detail | `/dashboard/assets/[id]` | Edit or AI View |
+| Template List | `/dashboard/assets/templates` | View, edit templates |
+| New Template | `/dashboard/assets/templates/new` | Define a new asset type |
+| Login | `/auth/login` | Sign in |
 
 ---
 
 ## Documents
 
-| Doc | Path | Content |
-|-----|------|---------|
-| This file | `/SKILL.md` | Project function overview |
-| MCP reference | `/mcp.md` | MCP server tools |
-| Endpoint reference | `docs/endpoint.md` | All API + frontend routes |
-| Auth system | `docs/auth.md` | Login, JWT, middleware |
-| Database design | `docs/db.md` | Schema, indexes, queries |
-| Feature guide | `docs/feat01.md` | AI views, capability query |
-| Architecture | `docs/feat/core.md` | Core design, meta-model |
+| Doc | Content |
+|-----|---------|
+| `/SKILL.md` | This file — how to use the platform |
+| `/mcp.md` | MCP server for AI tools |
+| `docs/auth.md` | Authentication system reference |
+| `docs/endpoint.md` | All API and frontend routes |
+| `docs/feat01.md` | AI views and capability queries |
