@@ -9,13 +9,10 @@ import { DataTableToolbar } from '@/components/ui/table/data-table-toolbar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { assetsQueryOptions } from '../../api/queries';
 import { columns } from './columns';
-import { useTransition } from 'react';
 
 const columnIds = columns.map((c) => c.id).filter(Boolean) as string[];
 
 export function AssetTable() {
-  const [isPending, startTransition] = useTransition();
-
   const [params] = useQueryStates(
     {
       page: parseAsInteger.withDefault(1),
@@ -25,7 +22,6 @@ export function AssetTable() {
       sort: getSortingStateParser(columnIds).withDefault([])
     },
     {
-      startTransition,
       history: 'replace',
       shallow: true
     }
@@ -48,7 +44,6 @@ export function AssetTable() {
     pageCount,
     shallow: true,
     debounceMs: 500,
-    startTransition,
     initialState: { columnPinning: { right: ['actions'] } }
   });
 
