@@ -283,7 +283,7 @@ Delete user by ID. **Response (200):** `{ "success": true }`
 | `/privacy-policy` | `privacy-policy/page.tsx` | Privacy policy |
 | `/terms-of-service` | `terms-of-service/page.tsx` | Terms of service |
 | `/SKILL.md` | Static file | Project skill description |
-| `/mcp.md` | Static file | MCP server documentation |
+| `/mcp.md` | Static file | MCP server documentation (canonical: `docs/mcp/index.md`) |
 
 ---
 
@@ -294,7 +294,7 @@ Files in `public/` are served directly at the root path:
 | Path | Source | Description |
 |------|--------|-------------|
 | `/SKILL.md` | `public/SKILL.md` | Project function skill documentation |
-| `/mcp.md` | `public/mcp.md` | MCP server tool documentation |
+| `/mcp.md` | `public/mcp.md` | MCP server tool documentation (canonical: `docs/mcp/index.md`) |
 | `/robots.txt` | `public/robots.txt` | Search engine directives |
 | `/favicon.ico` | `public/favicon.ico` | Site favicon |
 | `/next.svg` | `public/next.svg` | Next.js logo |

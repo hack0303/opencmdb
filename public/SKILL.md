@@ -123,7 +123,7 @@ Key columns: `id`, `template_id` (FK), `name`, `description`, `attributes` (JSON
 
 | Doc | URL |
 |-----|-----|
-| MCP server details | `http://192.168.1.14:3000/mcp.md` |
+| MCP tools & protocol | `docs/mcp/index.md` |
 | Database schema | `docs/db.md` |
 | API / frontend routes | `docs/endpoint.md` |
 | AI views & capability queries | `docs/feat01.md` |

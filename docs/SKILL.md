@@ -253,7 +253,7 @@ curl http://127.0.0.1:3100/tools
 | `/tools` | GET | List all tools (JSON) |
 | `/mcp` | POST | MCP JSON-RPC endpoint |
 
-See `/mcp.md` for full documentation.
+See `docs/mcp/index.md` for full documentation.
 
 ---
 
@@ -262,7 +262,7 @@ See `/mcp.md` for full documentation.
 | Doc | Content |
 |-----|---------|
 | `/SKILL.md` | This file — how to use the platform |
-| `/mcp.md` | MCP server for AI tools |
+| `docs/mcp/index.md` | MCP server tools & protocol |
 | `docs/auth.md` | Authentication system reference |
 | `docs/endpoint.md` | All API and frontend routes |
 | `docs/feat01.md` | AI views and capability queries |
