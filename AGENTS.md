@@ -738,6 +738,117 @@ See "Theming System" section above or `docs/themes.md`.
 
 ---
 
+## Dev Environment Tips
+
+### Navigation
+
+- Use `npm run dev` to start the development server (default: `http://localhost:3000`).
+- If port 3000 is in use, Next.js auto-selects the next available port.
+- To find a specific page route, check the build output or search `src/app/` for `page.tsx` files.
+
+### Adding Dependencies
+
+```bash
+npm install <package-name>          # Runtime dependency
+npm install -D <package-name>       # Dev dependency
+```
+
+### Managing shadcn Components
+
+```bash
+npx shadcn@latest add <component-name>
+```
+
+### Database Migrations
+
+```bash
+# Run migrations (requires PostgreSQL running)
+node scripts/migrate.mjs
+
+# Or via psql
+PGPASSWORD=<password> psql -h <host> -U opencmdb_rw -d opencmdb -f scripts/001-schema-assets.sql
+```
+
+### Quick Build Check
+
+Before committing, always run:
+
+```bash
+npm run build        # Full production build + type check
+npm run lint         # ESLint + oxlint
+```
+
+The pre-push hook (`bun run build`) runs automatically — fix any type errors before pushing.
+
+---
+
+## Testing Instructions
+
+> **Note**: This project does not include a formal test suite by default. The following are guidelines for when you add tests.
+
+### Running Tests
+
+```bash
+npm test                  # Run all tests
+npm run vitest -- -t "<test name>"   # Filter by test name
+```
+
+### Before Committing
+
+1. Run `npm run build` — must pass with zero TypeScript errors
+2. Run `npm run lint` — no errors, warnings are acceptable
+3. If tests exist, run `npm test` — whole suite must be green
+4. After moving files or changing imports, re-run lint to check for unresolved references
+
+### Manual Smoke Test
+
+After starting `npm run dev`, verify these routes load:
+
+```
+http://localhost:3000/auth/login          → Login page
+http://localhost:3000/dashboard/assets    → Asset listing (200)
+http://localhost:3000/dashboard/assets/new → New asset form
+http://localhost:3000/dashboard/assets/templates → Template listing
+```
+
+---
+
+## PR Instructions
+
+### Title Format
+
+```
+<type>: <short description>
+```
+
+Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `style`, `test`
+
+Examples:
+- `feat: add GPU asset type template`
+- `fix: remove hardcoded credentials before push`
+- `docs: update database schema documentation`
+
+### Before Submitting
+
+1. ✅ `npm run build` passes
+2. ✅ `npm run lint` is clean
+3. ✅ No hardcoded secrets (IPs, passwords, API keys) in source files
+4. ✅ `.env.local` is NOT committed (check with `git status`)
+5. ✅ Changes include updated docs if feature changes
+6. ✅ Database migrations are reversible
+
+### Privacy Checklist
+
+Before pushing to a public remote, scan for:
+
+```bash
+grep -rnP '(\d{1,3}\.){3}\d{1,3}' src/ --include='*.ts' --include='*.tsx'
+grep -rn 'password\|secret\|api_key\|token' src/ --include='*.ts' --include='*.tsx' | grep -v 'import\|process.env\|placeholder'
+git ls-files --cached .env .env.local .env.*.local
+```
+
+---
+
 ## Notes for AI Agents
 
 1. **Always use `cn()` for className merging** - never concatenate strings manually
