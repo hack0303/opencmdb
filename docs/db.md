@@ -255,7 +255,7 @@ node scripts/migrate.mjs
 Or with `psql` directly:
 
 ```bash
-PGPASSWORD=<password> psql -h 192.168.1.9 -U opencmdb_rw -d opencmdb -f scripts/001-schema-assets.sql
+PGPASSWORD=<password> psql -h <db-host> -U opencmdb_rw -d opencmdb -f scripts/001-schema-assets.sql
 ```
 
 ---
@@ -264,7 +264,7 @@ PGPASSWORD=<password> psql -h 192.168.1.9 -U opencmdb_rw -d opencmdb -f scripts/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DB_HOST` | `192.168.1.9` | Database hostname |
+| `DB_HOST` | `<db-host>` | Database hostname |
 | `DB_PORT` | `5432` | Database port |
 | `DB_NAME` | `opencmdb` | Database name |
 | `DB_USER` | `opencmdb_rw` | Database user (read-write) |

@@ -6,11 +6,11 @@
 
 set -euo pipefail
 
-DB_HOST="${DB_HOST:-192.168.1.9}"
+DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${DB_NAME:-opencmdb}"
 DB_USER="${DB_USER:-opencmdb_rw}"
-DB_PASS="${DB_PASS:-a1b2c3d4e5f6g7h8i9j0klmnopqrstuv}"
+DB_PASS="${DB_PASS:-}"
 MIGRATIONS_DIR="$(dirname "$0")"
 
 export PGPASSWORD="$DB_PASS"
@@ -62,7 +62,7 @@ if [ "$SEED_ONLY" = false ]; then
     SCHEMA_FILE="$MIGRATIONS_DIR/001-schema-assets.sql"
     echo ""
     echo "▶ [1/2] Applying schema: $(basename "$SCHEMA_FILE")"
-    
+
     if [ "$DRY_RUN" = true ]; then
         echo "  [DRY-RUN] Would execute:"
         head -5 "$SCHEMA_FILE"

@@ -6,9 +6,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-const SECRET = new TextEncoder().encode(
-  process.env.AUTH_SECRET || 'opencmdb-dev-secret-key-change-in-production-2024'
-);
+const SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || 'change-me-in-production');
 
 const COOKIE_NAME = 'session';
 const SESSION_DURATION = 24 * 60 * 60; // 24 hours in seconds

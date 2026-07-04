@@ -8,9 +8,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
-const SECRET = new TextEncoder().encode(
-  process.env.AUTH_SECRET || 'opencmdb-dev-secret-key-change-in-production-2024'
-);
+const SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || 'change-me-in-production');
 
 const publicPaths = ['/auth/login', '/api/auth/login'];
 

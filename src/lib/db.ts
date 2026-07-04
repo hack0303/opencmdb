@@ -6,11 +6,11 @@ import 'server-only';
 import { Pool } from 'pg';
 
 const pool = new Pool({
-  host: process.env.DB_HOST || '192.168.1.9',
+  host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432', 10),
   database: process.env.DB_NAME || 'opencmdb',
   user: process.env.DB_USER || 'opencmdb_rw',
-  password: process.env.DB_PASS || 'a1b2c3d4e5f6g7h8i9j0klmnopqrstuv',
+  password: process.env.DB_PASS || '',
   max: 10,
   idleTimeoutMillis: 30000
 });
