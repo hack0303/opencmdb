@@ -80,6 +80,7 @@ export default function AppSidebar() {
                         <SidebarMenuButton
                           tooltip={item.title}
                           isActive={hasUrl && (pathname === item.url || isChildActive)}
+                          onClick={() => hasUrl && router.push(item.url!)}
                         >
                           {item.icon && <Icon />}
                           <span>{item.title}</span>
