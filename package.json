@@ -18,6 +18,8 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "mcp": "node --import tsx src/mcp-server.ts",
+    "e2e": "node e2e/mcp-flow.test.js",
+    "e2e:register": "node e2e/mcp-flow.test.js --register",
     "prepare": "husky"
   },
   "dependencies": {

@@ -2,267 +2,269 @@
 name: opencmdb-asset-registration
 description: |
   OpenCMDB — 动态元模型资产注册与管理平台。
-  管理 IT 资产模板和实例（服务器、微服务、数据库、网关等）。
-  当用户提到"资产注册"、"资产管理"、"CMDB"、"资产模板"、"硬件管理"时触发。
+  通过远程 MCP 服务器（端口 3100）提供资产注册、模板管理、数据库迁移、只读查询等 AI 工具。
+  当用户提到"资产注册"、"资产管理"、"CMDB"、"资产模板"、"注册 xxx 资产"、"MCP 连接"、
+  "数据库迁移"、"查看资产"、"AI 视图"时触发。
 description_for_model: |
-  This skill describes how to use the OpenCMDB asset registration platform.
-  Use it when the user asks how to manage assets, create templates,
-  register instances, use AI views, or navigate the platform.
-  This project has a remote MCP server on port 3100 with tools for
-  database migration, read-only SQL queries, schema inspection,
-  build/lint, and migration file management.
-  MCP endpoint: http://127.0.0.1:3100/mcp
-allowed-tools: Bash(npm run dev), Bash(npm run build)
+  OpenCMDB is a dynamic meta-model asset registration and management platform.
+  It exposes a remote MCP server (Streamable HTTP, port 3100) with tools for
+  database migration, read-only SQL queries, schema inspection, and build/lint.
+
+  MCP endpoint: http://192.168.1.14:3100/mcp
+  Web UI:       http://192.168.1.14:3000
+
+  Session management is stateful. If a session is stuck (e.g. "Server already initialized"),
+  send POST /reset to clear the session, then re-initialize.
+
+  The database has two tables:
+    asset_templates  — defines asset types (PostgreSQL Database, GPU Node, etc.)
+                       with JSONB schema_def, state_mapping, capabilities
+    asset_instances  — concrete assets linked to a template, with JSONB attributes
 ---
 
-# How to Use OpenCMDB
+# OpenCMDB — MCP Server & Project Functions
 
-OpenCMDB is a **Configuration Management Database (CMDB)** for IT infrastructure.
-It works in two layers:
-
-1. **Templates** — define "what kind of asset" (e.g. "GPU Compute Node", "PostgreSQL Database")
-2. **Instances** — register specific assets (e.g. "gpu-node-ai-01", "cland-db-primary")
-
----
-
-## Quick Start
-
-```bash
-# Start the platform
-npm run dev
-
-# Open browser
-# http://localhost:3000
-
-# Login
-Username: opencmdb
-Password: opencmdb
-```
-
-After login, you'll see the **Assets** list page.
-
----
-
-## Login
-
-| Field | Value |
-|-------|-------|
-| URL | `/auth/login` |
-| Username | `opencmdb` |
-| Password | `opencmdb` |
-
----
-
-## Managing Assets
-
-### View All Assets
-
-Navigate to **Assets** in the sidebar (or `/dashboard/assets`).
-
-The table shows all registered assets with:
-- Name, type (template), current state, tags
-- **Search** — type to filter by name/description/tags
-- **Sort** — click column headers
-- **Filter** — by state or template type
-
-### Register a New Asset
-
-1. Click **"Register Asset"** button (top-right)
-2. Fill in the form across 4 sections:
-
-| Section | What to fill |
-|---------|-------------|
-| **① Basic Info** | Name, select a template, description, tags |
-| **② Attributes** | Properties defined by the template (e.g. CPU, GPU, RAM) |
-| **③ State Mapping** | States and health conditions (pre-filled from template) |
-| **④ Capabilities** | AI tools this asset provides (pre-filled from template) |
-
-3. Click **Create** — the new asset appears in the list
-
-### Edit an Asset
-
-1. Click the asset name in the list, OR
-2. Find the row → Actions → **Edit**
-
-### Delete an Asset
-
-1. Find the row → Actions → **Delete**
-2. Confirm in the dialog
-
-### View AI-Oriented Asset Info
-
-For an asset detail page:
-
-1. Actions → **"AI View"**, OR
-2. Append `?view=ai` to the URL
-
-The AI view removes internal IDs and timestamps, showing only:
-- `name`, `description` — what it is
-- `state` — current health
-- `attributes` — business properties
-- `capabilities` — what an AI can call
-- `tags` — classification
-
-**Switch format** between **YAML** (default) and **Markdown table** — then click **Copy**.
-
----
-
-## Managing Templates
-
-Templates define asset types. The platform comes with 5 built-in templates:
-
-| Template | Category | Used For |
-|----------|----------|----------|
-| Quarkus Microservice | software | Java REST services |
-| GPU Compute Node | hardware | NVIDIA GPU servers |
-| PostgreSQL Database | storage | Relational databases |
-| APISIX Gateway | software | API gateway instances |
-| Qdrant Vector DB | storage | Vector databases |
-
-### Create a New Template
-
-1. Go to **Templates** → **New Template**
-2. Fill in:
-
-| Field | What to enter |
-|-------|-------------|
-| Name | e.g. "Redis Cache Cluster" |
-| Category | `hardware` / `software` / `storage` |
-| Description | What this asset type does |
-| Tags | Comma-separated, e.g. `cache, redis, database` |
-| Attributes Schema (JSON) | Define the JSON Schema for asset attributes |
-| State Mapping (JSON) | Define states + health conditions |
-| Capabilities (JSON) | Define AI tool contracts |
-
-### Edit a Template
-
-1. Go to **Templates** → click a template name
-2. Modify fields → **Save**
-
----
-
-## Built-in Demo Data
-
-After running migrations, the system contains:
-
-**5 Templates** — Quarkus Microservice, GPU Compute Node, PostgreSQL Database, APISIX Gateway, Qdrant Vector DB
-
-**3 Instance Examples:**
-
-| Name | Type | State |
-|------|------|-------|
-| `cland-user-service-01` | Quarkus Microservice | RUNNING |
-| `gpu-node-ai-01` | GPU Node | ONLINE |
-| `cland-db-primary` | PostgreSQL | RUNNING |
-
-Use these as reference for registering your own assets.
-
----
-
-## Capability Search (AI Query)
-
-Find assets by what they **do**, not what they **are**:
+## Architecture
 
 ```
-/dashboard/assets?view=ai&q=payment
+AI Assistant ─── MCP (Streamable HTTP) ───→ OpenCMDB MCP Server (:3100)
+                                                    │
+                                                    ↓
+                                               PostgreSQL (opencmdb)
+                                               ├── asset_templates
+                                               └── asset_instances
 ```
 
-This returns all assets tagged "payment" or with payment-related capabilities.
+## MCP Connection
 
----
-
-## Tips
-
-| Task | How |
-|------|-----|
-| Find a specific asset | Use the search bar in the assets table |
-| See all templates at once | Go to Templates page |
-| Quick-register similar assets | Clone an existing asset and edit |
-| Export asset info for AI | Use AI View → Copy |
-| Clean up test data | Actions → Delete on any instance |
-
----
-
-## Key Pages
-
-| Page | URL | What you can do |
-|------|-----|----------------|
-| Asset List | `/dashboard/assets` | View, search, sort, filter all assets |
-| Register Asset | `/dashboard/assets/new` | Add a new asset |
-| Asset Detail | `/dashboard/assets/[id]` | Edit or AI View |
-| Template List | `/dashboard/assets/templates` | View, edit templates |
-| New Template | `/dashboard/assets/templates/new` | Define a new asset type |
-| Login | `/auth/login` | Sign in |
-
----
-
----
-
-## MCP Server (AI Tools)
-
-OpenCMDB provides a remote MCP server for AI assistants. It runs on port `:3100`
-(started automatically with `npm run dev` via concurrently).
-
-### Connection
+**Endpoint:** `http://192.168.1.14:3100/mcp`
 
 | Client | Config |
 |--------|--------|
-| Claude Code | `.mcp.json`: `"url": "http://127.0.0.1:3100/mcp"` |
-| Cursor | `.cursor/mcp.json`: same as above |
-| Any MCP client | `http://127.0.0.1:3100/mcp` |
+| Claude Code | `.mcp.json` → `"url": "http://192.168.1.14:3100/mcp"` |
+| Cursor | `.cursor/mcp.json` — same |
+| MCP SDK | `new StreamableHTTPClientTransport("http://192.168.1.14:3100/mcp")` |
 
-### Available Tools
-
-| Tool | What it does |
-|------|-------------|
-| `run_migration` | Apply pending SQL migrations (`seed_only`, `schema_only`, `dry_run`) |
-| `query_database` | Execute read-only SQL queries (SELECT / WITH) |
-| `list_tables` | Show all tables with row counts |
-| `describe_table` | Show columns, types, indexes for a table |
-| `run_dev_server` | Start Next.js dev server in background |
-| `build_project` | Run `npm run build` |
-| `lint_project` | Run `npm run lint` |
-| `read_migration_file` | Read a migration `.sql` file |
-| `list_migration_files` | List all migration files in order |
-
-### Protocol Flow (Stateful)
+**Protocol (Stateful):**
 
 ```
-1. POST /mcp  →  initialize          →  receive Mcp-Session-Id header
-2. POST /mcp  →  tools/list          →  list all 9 tools
-3. POST /mcp  →  tools/call          →  execute a tool
+1. POST /mcp  →  initialize              →  receive Mcp-Session-Id
+2. POST /mcp  →  tools/list              →  list tools
+3. POST /mcp  →  tools/call              →  execute tool
 ```
 
-All subsequent requests include `Mcp-Session-Id` header from step 1.
+All subsequent requests require `Mcp-Session-Id` + `Mcp-Protocol-Version` headers.
 
-### Quick Test
+> ⚠️ If `"Server already initialized"` error: send `POST /reset` first.
 
-```bash
-# Health check
-curl http://127.0.0.1:3100/health
-
-# Tool list
-curl http://127.0.0.1:3100/tools
-```
-
-### MCP Endpoints
+## HTTP Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
+| `/session` | GET | Current session ID + initialized state |
+| `/reset` | POST | Reset session (recover from stuck state) |
 | `/tools` | GET | List all tools (JSON) |
-| `/mcp` | POST | MCP JSON-RPC endpoint |
+| `/mcp` | POST | MCP JSON-RPC |
 
-See `/mcp.md` for full documentation.
+## MCP Tools
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `run_migration` | `seed_only`, `schema_only`, `dry_run` | Apply SQL migrations |
+| `query_database` | `sql` (SELECT/WITH), `params` | Read-only SQL queries |
+| `list_tables` | — | List all tables with row counts |
+| `describe_table` | `table` | Columns, types, indexes |
+| `run_dev_server` | — | Start Next.js dev server |
+| `build_project` | — | Run production build |
+| `lint_project` | — | Run linter |
+| `read_migration_file` | `file` | Read a migration SQL file |
+| `list_migration_files` | — | List all migration files |
+
+## Database Schema
+
+### `asset_templates` — 5 built-in templates
+
+| ID | Name | Category |
+|----|------|----------|
+| `tmpl-srv-001` | Quarkus Microservice | software |
+| `tmpl-hw-001` | GPU Compute Node | hardware |
+| `tmpl-db-001` | PostgreSQL Database | storage |
+| `tmpl-gw-001` | APISIX Gateway | software |
+| `tmpl-vec-001` | Qdrant Vector DB | storage |
+
+Each template defines:
+- `schema_def` (JSONB) — JSON Schema for valid attributes
+- `state_mapping` (JSONB) — lifecycle state definitions
+- `capabilities` (JSONB) — AI tool contracts
+
+### `asset_instances` — concrete assets
+
+Key columns: `id`, `template_id` (FK), `name`, `description`, `attributes` (JSONB), `current_state`, `tags` (TEXT[]), `capabilities` (JSONB)
+
+### Seed data
+
+| ID | Name | Template | State |
+|----|------|----------|-------|
+| `ast-srv-001` | cland-user-service-01 | Quarkus Microservice | RUNNING |
+| `ast-hw-001` | gpu-node-ai-01 | GPU Compute Node | ONLINE |
+| `ast-db-001` | cland-db-primary | PostgreSQL Database | RUNNING |
+
+## Related Docs
+
+| Doc | URL |
+|-----|-----|
+| MCP server details | `http://192.168.1.14:3000/mcp.md` |
+| Database schema | `docs/db.md` |
+| API / frontend routes | `docs/endpoint.md` |
+| AI views & capability queries | `docs/feat01.md` |
+
+## Login
+
+**URL:** `http://192.168.1.14:3000/auth/login`
+**Credentials:** `opencmdb` / `opencmdb`
 
 ---
 
-## Documents
+## Examples
 
-| Doc | Content |
-|-----|---------|
-| `/SKILL.md` | This file — how to use the platform |
-| `/mcp.md` | MCP server for AI tools |
-| `docs/auth.md` | Authentication system reference |
-| `docs/endpoint.md` | All API and frontend routes |
-| `docs/feat01.md` | AI views and capability queries |
+### 1. Initialize Session
+
+```bash
+curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2025-03-26",
+      "capabilities": {},
+      "clientInfo": { "name": "my-agent", "version": "1.0.0" }
+    },
+    "id": 1
+  }'
+```
+
+→ Response header: `Mcp-Session-Id: ea00d16f-...` (save this for subsequent calls)
+
+### 2. Recover from Stuck Session
+
+If initialize returns `"Server already initialized"`:
+
+```bash
+curl -s -X POST http://192.168.1.14:3100/reset
+```
+
+Then retry initialize.
+
+### 3. List All Tools
+
+```bash
+SESSION_ID="your-saved-session-id"
+
+curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Session-Id: ${SESSION_ID}" \
+  -H "Mcp-Protocol-Version: 2025-03-26" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/list",
+    "id": 2
+  }'
+```
+
+### 4. Query Templates
+
+Find the PostgreSQL Database template schema:
+
+```bash
+curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Session-Id: ${SESSION_ID}" \
+  -H "Mcp-Protocol-Version: 2025-03-26" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+      "name": "query_database",
+      "arguments": {
+        "sql": "SELECT id, name, schema_def FROM asset_templates WHERE name = '"'"'PostgreSQL Database'"'"'"
+      }
+    },
+    "id": 3
+  }'
+```
+
+### 5. Register a New Asset
+
+Insert a PostgreSQL database instance:
+
+```bash
+curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Session-Id: ${SESSION_ID}" \
+  -H "Mcp-Protocol-Version: 2025-03-26" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+      "name": "query_database",
+      "arguments": {
+        "sql": "INSERT INTO asset_instances (id, template_id, name, description, attributes, tags) VALUES ($1, $2, $3, $4, $5::jsonb, $6::text[]) ON CONFLICT (id) DO NOTHING",
+        "params": [
+          "ast-db-002",
+          "tmpl-db-001",
+          "cland_base_dict",
+          "基础字典库",
+          "{\"version\": \"16\", \"host\": \"192.168.1.9\", \"port\": 5432, \"rw_user\": \"opencmdb_rw\", \"ro_user\": \"opencmdb_ro\", \"connectionString\": \"jdbc:postgresql://192.168.1.9:5432/cland_base_dict\"}",
+          "{database,postgresql,production}"
+        ]
+      }
+    },
+    "id": 4
+  }'
+```
+
+### 6. Verify Registered Assets
+
+```bash
+curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Session-Id: ${SESSION_ID}" \
+  -H "Mcp-Protocol-Version: 2025-03-26" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+      "name": "query_database",
+      "arguments": {
+        "sql": "SELECT id, name, current_state, attributes->>'"'"'host'"'"' AS host FROM asset_instances ORDER BY name"
+      }
+    },
+    "id": 5
+  }'
+```
+
+### 7. Describe a Table
+
+```bash
+curl -s --noproxy "*" -X POST http://192.168.1.14:3100/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Session-Id: ${SESSION_ID}" \
+  -H "Mcp-Protocol-Version: 2025-03-26" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+      "name": "describe_table",
+      "arguments": { "table": "asset_instances" }
+    },
+    "id": 6
+  }'
+```

@@ -1,16 +1,9 @@
 // ═══════════════════════════════════════════════════════════
-// Database Connection — Pool + query helpers
-// server-only guard: throws in Next.js client bundle, safe in standalone.
+// Database Pool — shared between Next.js (db.ts) and MCP server
+// No `server-only` — plain pg.Pool.
 // ═══════════════════════════════════════════════════════════
 
 import { Pool } from 'pg';
-
-// Try server-only guard — silently skip when not in Next.js server context
-try {
-  require('server-only');
-} catch {
-  // standalone (MCP server) — no guard needed
-}
 
 const pool = new Pool({
   host: process.env.DB_HOST || '192.168.1.9',
