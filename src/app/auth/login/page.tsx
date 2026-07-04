@@ -1,49 +1,49 @@
 'use client';
 
-import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Icons } from '@/components/icons';
-import { toast } from 'sonner';
+
+function LoginForm() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
+
+  return (
+    <form action='/api/auth/login' method='POST' className='space-y-4'>
+      {error && (
+        <p className='rounded-md bg-destructive/10 p-3 text-sm text-destructive'>
+          {error === 'invalid' && 'Invalid username or password'}
+          {error === 'required' && 'Username and password are required'}
+          {!['invalid', 'required'].includes(error) && 'Login failed'}
+        </p>
+      )}
+      <div className='space-y-2'>
+        <Label htmlFor='username'>Username</Label>
+        <Input
+          id='username'
+          name='username'
+          type='text'
+          placeholder='opencmdb'
+          required
+          autoFocus
+        />
+      </div>
+      <div className='space-y-2'>
+        <Label htmlFor='password'>Password</Label>
+        <Input id='password' name='password' type='password' placeholder='••••••••' required />
+      </div>
+      <Button type='submit' className='w-full'>
+        Sign in
+      </Button>
+    </form>
+  );
+}
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        toast.success('Welcome to OpenCMDB');
-        // Navigate to dashboard — cookie was already set by the server
-        window.location.href = '/dashboard/assets';
-      } else {
-        setError(data.error || 'Login failed');
-        toast.error(data.error || 'Login failed');
-      }
-    } catch {
-      setError('Network error — is the server running?');
-      toast.error('Network error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className='flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-4'>
       <Card className='w-full max-w-sm shadow-lg'>
@@ -55,35 +55,9 @@ export default function LoginPage() {
           <CardDescription>Sign in to access the asset management system</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className='space-y-4'>
-            <div className='space-y-2'>
-              <Label htmlFor='username'>Username</Label>
-              <Input
-                id='username'
-                type='text'
-                placeholder='opencmdb'
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                autoFocus
-              />
-            </div>
-            <div className='space-y-2'>
-              <Label htmlFor='password'>Password</Label>
-              <Input
-                id='password'
-                type='password'
-                placeholder='••••••••'
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            {error && <p className='text-sm text-destructive'>{error}</p>}
-            <Button type='submit' className='w-full' isLoading={loading}>
-              {loading ? 'Signing in...' : 'Sign in'}
-            </Button>
-          </form>
+          <Suspense fallback={null}>
+            <LoginForm />
+          </Suspense>
           <p className='mt-4 text-center text-xs text-muted-foreground'>
             Default credentials: <span className='font-mono font-medium'>opencmdb</span> /{' '}
             <span className='font-mono font-medium'>opencmdb</span>
