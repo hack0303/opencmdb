@@ -31,6 +31,7 @@ import { useFilteredNavGroups } from '@/hooks/use-nav';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
+import { startTransition } from 'react';
 import { Icons } from '../icons';
 
 export default function AppSidebar() {
@@ -80,7 +81,7 @@ export default function AppSidebar() {
                         <SidebarMenuButton
                           tooltip={item.title}
                           isActive={hasUrl && (pathname === item.url || isChildActive)}
-                          onClick={() => hasUrl && router.push(item.url!)}
+                          onClick={() => hasUrl && startTransition(() => router.push(item.url!))}
                         >
                           {item.icon && <Icon />}
                           <span>{item.title}</span>
