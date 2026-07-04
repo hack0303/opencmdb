@@ -1,248 +1,188 @@
-<h1 align="center">Admin Dashboard Template with Next.js &amp; Shadcn UI</h1>
+<h1 align="center">OpenCMDB</h1>
 
-<div align="center">Open source admin dashboard starter built with Next.js 16, shadcn/ui, Tailwind CSS, and TypeScript</div>
+<div align="center">Unified asset management system with dynamic meta-model — for humans and AI</div>
 
 <br />
 
 <div align="center">
-  <a href="https://dub.sh/shadcn-dashboard"><strong>View Demo</strong></a>
+  <a href="https://github.com/hack0303/opencmdb"><strong>GitHub</strong></a> ·
+  <a href="./docs/feat.md"><strong>Documentation</strong></a> ·
+  <a href="./CONTRIBUTING.md"><strong>Contributing</strong></a>
 </div>
+
 <br />
-<div align="center">
-  <img src="/public/shadcn-dashboard.png" alt="Shadcn Dashboard Cover" style="max-width: 100%; border-radius: 8px;" />
-</div>
 
 <p align="center">
-  <a href="https://github.com/Kiranism/next-shadcn-dashboard-starter/stargazers"><img src="https://img.shields.io/github/stars/Kiranism/next-shadcn-dashboard-starter?style=social" alt="GitHub stars" /></a>
-  <a href="https://github.com/Kiranism/next-shadcn-dashboard-starter/network/members"><img src="https://img.shields.io/github/forks/Kiranism/next-shadcn-dashboard-starter?style=social" alt="Forks" /></a>
-  <a href="https://github.com/Kiranism/next-shadcn-dashboard-starter/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Kiranism/next-shadcn-dashboard-starter" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/Next.js-16-black" alt="Next.js" />
-  <a href="https://go.clerk.com/ILdYhn7"><img src="https://img.shields.io/badge/Sponsored_by-Clerk-6C47FF?style=flat-square&logo=clerk" alt="Sponsored by Clerk" /></a>
+  <img src="https://img.shields.io/badge/TypeScript-5.7-blue" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/PostgreSQL-16-336791" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/shadcn/ui-latest-black" alt="shadcn/ui" />
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT" />
 </p>
+
+---
 
 ## Overview
 
-An open source admin dashboard starter built with Next.js 16, shadcn/ui, TypeScript, and Tailwind CSS.
+OpenCMDB 是一个面向 **人和 AI** 的统一资产管理系统。核心创新在于**动态元模型（Dynamic Meta-Model）** 设计——不 同类型的资产（服务器、微服务、数据库、网关）不再需要各自建表，而是通过统一的 JSONB 模型实现"一处定义，到处继承"。
 
-It ships with authentication, charts, tables, forms, and a feature-based folder structure, so you can skip the boilerplate and start building. It works well as a base for SaaS apps, internal tools, and admin panels.
+### 设计理念
 
-### Tech Stack
+```
+┌──────────────┐     ┌──────────────────┐     ┌─────────────┐
+│  人类管理员    │────→│  资产类型模板      │────→│   AI 代理   │
+│  (定义规范)    │     │  (元模型)         │     │  (消费能力)  │
+│              │     │                  │     │             │
+│  模板定义:    │     │  schema_def JSONB │     │  能力检索    │
+│  Quarkus     │     │  state_mapping    │     │  跨类型查询  │
+│  GPU 节点    │     │  capabilities     │     │  Token 瘦身  │
+│  PostgreSQL  │     │                  │     │             │
+│  APISIX      │     │  实例填充:        │     │  YAML/表格  │
+│  Qdrant      │     │  attributes       │     │  格式转译    │
+│              │     │  current_state    │     │             │
+└──────────────┘     └──────────────────┘     └─────────────┘
+```
 
-- Framework - [Next.js 16](https://nextjs.org/16)
-- Language - [TypeScript](https://www.typescriptlang.org)
-- Auth - [Clerk](https://go.clerk.com/ILdYhn7)
-- Error tracking - [Sentry](https://sentry.io/for/nextjs/?utm_source=github&utm_medium=paid-community&utm_campaign=general-fy26q2-nextjs&utm_content=github-banner-project-tryfree)
-- Styling - [Tailwind CSS v4](https://tailwindcss.com)
-- Components - [shadcn/ui](https://ui.shadcn.com)
-- Charts - [Recharts](https://recharts.org) • [Evil Charts](https://evilcharts.com/)
-- Schema validation - [Zod](https://zod.dev)
-- Data fetching - [TanStack React Query](https://tanstack.com/query)
-- State management - [Zustand](https://zustand-demo.pmnd.rs)
-- Search param state - [Nuqs](https://nuqs.47ng.com/)
-- Tables - [TanStack Data Tables](https://ui.shadcn.com/docs/components/data-table) • [Dice Table](https://www.diceui.com/docs/components/data-table)
-- Forms - [TanStack Form](https://tanstack.com/form) + [Zod](https://zod.dev)
-- Command+K interface - [kbar](https://kbar.vercel.app/)
-- Linter / Formatter - [OxLint](https://oxc.rs/docs/guide/usage/linter) • [Oxfmt](https://oxc.rs/docs/guide/usage/formatter)
-- Pre-commit hooks - [Husky](https://typicode.github.io/husky/)
-- Themes - [tweakcn](https://tweakcn.com/)
+### 关键特性
 
-_Looking for a TanStack Start version? Here's the [repo](https://git.new/tanstack-start-dashboard)._
+- **动态元模型** — JSONB 存储任意资产属性，无需 DDL 迁移
+- **三要素登记** — 固有属性 + 状态映射 + 语义能力契约
+- **AI 原生** — 能力检索、Token 瘦身、YAML/Markdown 双格式输出
+- **认证** — 内置 JWT 登录，无外部依赖
+- **全栈** — Next.js 16 + PostgreSQL + TanStack Query
 
-## Features
+---
 
-- Pre-built dashboard layout with sidebar, header, and content area
-- Analytics overview page with cards and charts
-- Data tables with React Query prefetch, client-side cache, search, filter, and pagination
-- Authentication and user management through Clerk
-- Multi-tenant workspaces using Clerk Organizations (create, switch, manage teams)
-- Billing and subscriptions via Clerk Billing for B2B, with plan management and feature gating
-- Client-side RBAC navigation that filters menu items by organization, permissions, and roles
-- Infobar component for tips, status messages, or contextual notes on any page
-- shadcn/ui components styled with Tailwind CSS
-- Six-plus themes with a theme switcher
-- Feature-based folder structure
-- A starting point for SaaS dashboards, internal tools, and client admin panels
+## Pre-built Data
 
-## Use Cases
+### 5 Asset Type Templates
 
-A few things you can build with it:
+| ID | Name | Category |
+|----|------|----------|
+| `tmpl-srv-001` | Quarkus Microservice | `software` |
+| `tmpl-hw-001` | GPU Compute Node | `hardware` |
+| `tmpl-db-001` | PostgreSQL Database | `storage` |
+| `tmpl-gw-001` | APISIX Gateway | `software` |
+| `tmpl-vec-001` | Qdrant Vector DB | `storage` |
 
-- SaaS admin dashboards
-- Internal tools and operations panels
-- Analytics dashboards
-- Client project admin panels
-- A boilerplate for new Next.js shadcn projects
+### 3 Sample Instances
 
-## Pages
+| ID | Name | Template | State |
+|----|------|----------|-------|
+| `ast-srv-001` | cland-user-service-01 | Quarkus Microservice | RUNNING |
+| `ast-hw-001` | gpu-node-ai-01 | GPU Compute Node | ONLINE |
+| `ast-db-001` | cland-db-primary | PostgreSQL Database | RUNNING |
 
-| Page                                                                                                                                                                  | Notes                                                                                                                                                                                |
-| :------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Signup / Signin](https://go.clerk.com/ILdYhn7)                                                                                                                       | Auth handled by Clerk, with passwordless sign-in, social logins, and enterprise SSO.                                                                                                |
-| [Dashboard Overview](https://shadcn-dashboard.kiranism.dev/dashboard)                                                                                                 | Cards and Recharts graphs. Parallel routes give each section its own loading and error state.                                                                                       |
-| [Product List (Table)](https://shadcn-dashboard.kiranism.dev/dashboard/product)                                                                                       | TanStack Table plus React Query (server prefetch, client cache) with nuqs URL state for search, filter, and pagination. `shallow: true` keeps interactions on the client.           |
-| [Create Product Form](https://shadcn-dashboard.kiranism.dev/dashboard/product/new)                                                                                    | TanStack Form and Zod with `useMutation` for create and update. Cache is invalidated on success.                                                                                    |
-| [Users (Table)](https://shadcn-dashboard.kiranism.dev/dashboard/users)                                                                                                | Same setup as Products: React Query with nuqs, server prefetch, and client-side pagination and filtering.                                                                           |
-| [React Query Demo](https://shadcn-dashboard.kiranism.dev/dashboard/react-query)                                                                                       | A Pokemon API example showing the server prefetch, `HydrationBoundary`, and `useSuspenseQuery` pattern with client-side cache.                                                      |
-| [Profile](https://shadcn-dashboard.kiranism.dev/dashboard/profile)                                                                                                   | Clerk's account management UI for profile and security settings.                                                                                                                    |
-| [Kanban Board](https://shadcn-dashboard.kiranism.dev/dashboard/kanban)                                                                                                | Drag-and-drop task board built with dnd-kit and Zustand. Column sorting, priority badges, assignees, and due dates.                                                                 |
-| [Chat](https://shadcn-dashboard.kiranism.dev/dashboard/chat)                                                                                                          | Messaging UI with a conversation list, message bubbles, quick replies, attachments, and an auto-reply demo. Multi-panel layout that works on mobile.                                |
-| [Notifications](https://shadcn-dashboard.kiranism.dev/dashboard/notifications)                                                                                        | Notification center with a header badge, popover preview, and a full page with All / Unread / Read tabs. Includes mark-as-read and mark-all-as-read.                                |
-| [Workspaces](https://shadcn-dashboard.kiranism.dev/dashboard/workspaces)                                                                                              | Organization management using Clerk's `<OrganizationList />`. View, create, and switch between organizations.                                                                       |
-| [Team Management](https://shadcn-dashboard.kiranism.dev/dashboard/workspaces/team)                                                                                    | Team management using Clerk's `<OrganizationProfile />`. Manage members, roles, permissions, security, and org details. Needs an active organization.                               |
-| [Billing & Plans](https://shadcn-dashboard.kiranism.dev/dashboard/billing)                                                                                            | Billing page using Clerk's `<PricingTable />`. View plans, subscribe, and manage subscriptions. Needs an active organization.                                                       |
-| [Exclusive Page](https://shadcn-dashboard.kiranism.dev/dashboard/exclusive)                                                                                           | Plan-based access control with Clerk's `<Protect>`. Only available to organizations on the Pro plan, with a fallback UI for everyone else.                                          |
-| [Not Found](https://shadcn-dashboard.kiranism.dev/dashboard/notfound)                                                                                                 | A root-level not-found page.                                                                                                                                                        |
-| [Global Error](https://sentry.io/for/nextjs/?utm_source=github&utm_medium=paid-community&utm_campaign=general-fy26q2-nextjs&utm_content=github-banner-project-tryfree) | A shared error page wired to Sentry for logging, reports, and session replay.                                                                                                       |
+---
 
-## Folder Structure
+## Quick Start
 
-```plaintext
+### Prerequisites
+
+- Node.js >= 20
+- PostgreSQL >= 16 (running, with database initialized)
+
+### Setup
+
+```bash
+# 1. Clone
+git clone git@github.com:hack0303/opencmdb.git
+cd opencmdb
+
+# 2. Install
+npm install
+
+# 3. Configure
+cp .env.example .env.local
+# Edit .env.local: set DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
+
+# 4. Initialize database
+node scripts/migrate.mjs
+
+# 5. Start dev server
+npm run dev
+```
+
+Open **[http://localhost:3000](http://localhost:3000)** and login with:
+
+| Username | Password |
+|----------|----------|
+| `opencmdb` | `opencmdb` |
+
+---
+
+## Routes
+
+| Route | Description |
+|-------|-------------|
+| `/auth/login` | Login page |
+| `/dashboard/assets` | **Asset instances** — register, search, filter |
+| `/dashboard/assets/new` | **Register new asset** — three-block form |
+| `/dashboard/assets/[id]` | Edit asset details |
+| `/dashboard/assets/[id]?view=ai` | **AI view** — YAML / Markdown |
+| `/dashboard/assets/templates` | **Asset type templates** — define meta-models |
+| `/dashboard/assets/templates/new` | Create new template |
+| `/dashboard/assets/templates/[id]` | Edit template |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | [Next.js 16](https://nextjs.org) (App Router) |
+| Language | [TypeScript 5.7](https://www.typescriptlang.org) (strict) |
+| Styling | [Tailwind CSS v4](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) |
+| Data Fetching | [TanStack Query v5](https://tanstack.com/query) |
+| Forms | [TanStack Form](https://tanstack.com/form) + [Zod](https://zod.dev) |
+| Tables | [TanStack Table](https://tanstack.com/table) |
+| Database | [PostgreSQL 16](https://postgresql.org) + [node-postgres](https://node-postgres.com) |
+| Auth | JWT ([jose](https://github.com/panva/jose)) + httpOnly cookies |
+| Charts | [Recharts](https://recharts.org) |
+
+---
+
+## Project Structure
+
+```
 src/
-├── app/                           # Next.js App Router directory
-│   ├── auth/                      # Auth pages (sign-in, sign-up)
-│   ├── dashboard/                 # Dashboard route group
-│   │   ├── overview/              # Analytics with parallel routes
-│   │   ├── product/               # Product CRUD pages (React Query)
-│   │   ├── users/                 # Users table (React Query + nuqs)
-│   │   ├── react-query/           # React Query demo page
-│   │   ├── kanban/                # Task board page
-│   │   ├── chat/                  # Messaging page
-│   │   ├── notifications/         # Notifications page
-│   │   ├── workspaces/            # Org management & teams
-│   │   ├── billing/               # Billing & plans
-│   │   ├── profile/               # User profile
-│   │   └── exclusive/             # Plan-gated page
-│   └── api/                       # API routes
-│
-├── components/                    # Shared components
-│   ├── ui/                        # UI primitives (buttons, inputs, kanban, etc.)
-│   ├── layout/                    # Layout components (header, sidebar, etc.)
-│   ├── themes/                    # Theme system (selector, mode toggle, config)
-│   └── kbar/                      # Command+K interface
-│
-├── features/                      # Feature-based modules
-│   ├── overview/                  # Dashboard analytics (charts, cards)
-│   ├── products/                  # Product listing, form, tables (React Query)
-│   ├── users/                     # User management table (React Query)
-│   ├── react-query-demo/          # React Query demo (Pokemon API)
-│   ├── kanban/                    # Drag-drop task board
-│   ├── chat/                      # Messaging (conversations, bubbles, composer)
-│   ├── notifications/             # Notification center & store
-│   ├── auth/                      # Auth components
-│   └── profile/                   # Profile form schemas
-│
-├── lib/                           # Core utilities (query-client, searchparams, etc.)
-├── hooks/                         # Custom hooks
-├── config/                        # Navigation, infobar, data table config
-├── constants/                     # Mock data
-├── styles/                        # Global CSS & theme files
-│   └── themes/                    # Individual theme CSS files
-└── types/                         # TypeScript types
+├── app/
+│   ├── api/auth/          # Auth API (login/logout/me)
+│   ├── auth/login/        # Login page
+│   └── dashboard/assets/  # ← Asset management pages (6 routes)
+├── features/
+│   └── assets/            # ← Core feature module
+│       ├── api/           # types → service → queries → mutations
+│       └── components/    # UI components (13 files)
+├── lib/                   # auth.ts, db.ts, auth-context.tsx
+├── config/                # nav-config.ts
+└── components/            # Shared UI components
+
+scripts/                   # Database migrations
+docs/                      # Documentation
+  ├── db.md                # Database design
+  ├── feat.md              # Feature overview
+  ├── feat/core.md         # Core design
+  └── feat01.md            # Feature guide
 ```
-
-## Getting Started
-
-> [!NOTE]
-> This starter uses Next.js 16 (App Router) with React 19 and shadcn/ui. To run it locally:
-
-Clone the repo:
-
-```
-git clone https://github.com/Kiranism/next-shadcn-dashboard-starter.git
-```
-
-- `bun install`
-- Copy the example env file: `cp env.example.txt .env.local`
-- Fill in the required variables in `.env.local`
-- `bun run dev`
-
-##### Environment variables
-
-See `env.example.txt` for the variables you need. They cover authentication and error tracking.
-
-##### Clerk setup
-
-For setting up Clerk auth (including organizations, workspaces, and teams), see [clerk_setup.md](./docs/clerk_setup.md).
-
-The app should now be running at http://localhost:3000.
-
-> [!WARNING]
-> After cloning or forking, be careful when pulling the latest changes. Updates can cause merge conflicts.
 
 ---
 
-#### Cleanup
+## Documentation
 
-To strip out features you don't need (auth, kanban, chat, notifications, extra themes, Sentry), run the cleanup script:
-
-```bash
-node scripts/cleanup.js --interactive   # interactive mode
-node scripts/cleanup.js --list          # see available features
-node scripts/cleanup.js --dry-run chat  # preview before removing
-node scripts/cleanup.js kanban chat     # remove specific features
-```
-
-Run `node scripts/cleanup.js --help` for all options. Delete `scripts/cleanup.js` when you're done.
-
-## Deploy
-
-The project includes Dockerfiles (`Dockerfile` for Node.js, `Dockerfile.bun` for Bun) that use standalone output mode. For other options, see the [Next.js deployment docs](https://nextjs.org/docs/app/getting-started/deploying).
-
-### Docker
-
-Build the image:
-
-```bash
-# Node.js
-docker build \
-  --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_xxxxx \
-  -t shadcn-dashboard .
-
-# OR Bun
-docker build -f Dockerfile.bun \
-  --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_xxxxx \
-  -t shadcn-dashboard .
-```
-
-Run the container:
-
-```bash
-docker run -d -p 3000:3000 \
-  -e NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_xxxxx \
-  -e CLERK_SECRET_KEY=sk_live_xxxxx \
-  --restart unless-stopped \
-  --name shadcn-dashboard \
-  shadcn-dashboard
-```
-
-### Support
-
-If this template saved you some time, a star is appreciated. You can also [buy me a coffee](https://buymeacoffee.com/kir4n) if you'd like.
-
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?style=flat-square&logo=buymeacoffee)](https://buymeacoffee.com/kir4n)
-
-<!--
-
-SEO keywords:
-
-open source admin dashboard, nextjs admin dashboard, nextjs dashboard template,
-
-shadcn ui dashboard, admin dashboard starter, next.js 16, typescript dashboard,
-
-dashboard ui template, nextjs shadcn admin panel, react admin dashboard,
-
-tailwind css admin dashboard
-
--->
+| Document | Content |
+|----------|---------|
+| [docs/feat.md](./docs/feat.md) | Feature overview and quick reference |
+| [docs/feat/core.md](./docs/feat/core.md) | Architecture, meta-model, data flow, indexes |
+| [docs/feat01.md](./docs/feat01.md) | Auth, AI views, usage guide |
+| [docs/db.md](./docs/db.md) | Database schema and query patterns |
+| [AGENTS.md](./AGENTS.md) | AI agent coding conventions |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | Development guide and PR workflow |
 
 ---
 
-## Star History
+## License
 
-<a href="https://www.star-history.com/#Kiranism/next-shadcn-dashboard-starter&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Kiranism/next-shadcn-dashboard-starter&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Kiranism/next-shadcn-dashboard-starter&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Kiranism/next-shadcn-dashboard-starter&type=date&legend=top-left" />
- </picture>
-</a>
+[MIT](./LICENSE)
+
+*Built on [next-shadcn-dashboard-starter](https://github.com/Kiranism/next-shadcn-dashboard-starter) — original README at [docs/README.origin.md](./docs/README.origin.md)*
