@@ -30,7 +30,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useFilteredNavGroups } from '@/hooks/use-nav';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import * as React from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { startTransition } from 'react';
 import { Icons } from '../icons';
 
@@ -41,9 +41,53 @@ export default function AppSidebar() {
   const router = useRouter();
   const filteredGroups = useFilteredNavGroups(navGroups);
 
-  React.useEffect(() => {
-    // Side effects based on sidebar state changes
-  }, [isOpen]);
+  // Track open state for collapsible menu items
+  const [openMenus, setOpenMenus] = useState<Set<string>>(() => {
+    // Initialize: open menus whose routes match current pathname
+    const initial = new Set<string>();
+    for (const group of navGroups) {
+      for (const item of group.items) {
+        if (!item.items?.length) continue;
+        const shouldOpen =
+          item.isActive ||
+          pathname === item.url ||
+          item.items.some((sub) => sub.url && pathname.startsWith(sub.url));
+        if (shouldOpen) initial.add(item.title);
+      }
+    }
+    return initial;
+  });
+
+  // Sync open state when pathname changes
+  useEffect(() => {
+    setOpenMenus((prev) => {
+      const next = new Set(prev);
+      for (const group of navGroups) {
+        for (const item of group.items) {
+          if (!item.items?.length) continue;
+          const shouldOpen =
+            item.isActive ||
+            pathname === item.url ||
+            item.items.some((sub) => sub.url && pathname.startsWith(sub.url));
+          if (shouldOpen) {
+            next.add(item.title);
+          } else {
+            next.delete(item.title);
+          }
+        }
+      }
+      return next;
+    });
+  }, [pathname]);
+
+  const toggleMenu = useCallback((title: string, open: boolean) => {
+    setOpenMenus((prev) => {
+      const next = new Set(prev);
+      if (open) next.add(title);
+      else next.delete(title);
+      return next;
+    });
+  }, []);
 
   return (
     <Sidebar collapsible='icon'>
@@ -69,9 +113,10 @@ export default function AppSidebar() {
                   item.items?.some((sub) => sub.url && pathname.startsWith(sub.url));
                 return item?.items && item?.items?.length > 0 ? (
                   <Collapsible
-                    key={`${item.title}-${isActive}`}
+                    key={item.title}
+                    open={openMenus.has(item.title)}
+                    onOpenChange={(open) => toggleMenu(item.title, open)}
                     asChild
-                    defaultOpen={item.isActive || isActive}
                     className='group/collapsible'
                   >
                     <SidebarMenuItem>
