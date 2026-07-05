@@ -27,5 +27,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/demo-app:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/demo-app:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/opencmdb:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/opencmdb:${{ github.sha }}
