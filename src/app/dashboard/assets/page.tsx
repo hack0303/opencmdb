@@ -7,6 +7,8 @@ import { Icons } from '@/components/icons';
 import Link from 'next/link';
 import type { SearchParams } from 'nuqs/server';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Dashboard: Assets'
 };

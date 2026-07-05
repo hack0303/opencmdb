@@ -4,6 +4,8 @@ import { templatesQueryOptions } from '@/features/assets/api/queries';
 import PageContainer from '@/components/layout/page-container';
 import AssetViewPage from '@/features/assets/components/asset-view-page';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Dashboard: Register Asset'
 };

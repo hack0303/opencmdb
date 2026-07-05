@@ -4,6 +4,8 @@ import { templateByIdOptions } from '@/features/assets/api/queries';
 import PageContainer from '@/components/layout/page-container';
 import TemplateViewPage from '@/features/assets/components/template-view-page';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Dashboard: Edit Template'
 };
