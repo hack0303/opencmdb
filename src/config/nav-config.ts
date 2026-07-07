@@ -44,30 +44,12 @@ export const navGroups: NavGroup[] = [
         isActive: false,
         shortcut: ['d', 'd'],
         items: []
-      },
-      {
-        title: 'Workspaces',
-        url: '/dashboard/workspaces',
-        icon: 'workspace',
-        isActive: false,
-        items: []
-      },
-      {
-        title: 'Teams',
-        url: '/dashboard/workspaces/team',
-        icon: 'teams',
-        isActive: false,
-        items: [],
-        access: { requireOrg: true }
-      },
-      {
-        title: 'Product',
-        url: '/dashboard/product',
-        icon: 'product',
-        shortcut: ['p', 'p'],
-        isActive: false,
-        items: []
-      },
+      }
+    ]
+  },
+  {
+    label: 'Elements',
+    items: [
       {
         title: 'Users',
         url: '/dashboard/users',
@@ -77,18 +59,18 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
-        title: 'Kanban',
-        url: '/dashboard/kanban',
-        icon: 'kanban',
-        shortcut: ['k', 'k'],
+        title: 'Domains',
+        url: '/dashboard/domains',
+        icon: 'workspace',
+        shortcut: ['m', 'd'],
         isActive: false,
         items: []
       },
       {
-        title: 'Chat',
-        url: '/dashboard/chat',
-        icon: 'chat',
-        shortcut: ['c', 'c'],
+        title: 'Services',
+        url: '/dashboard/services',
+        icon: 'stack2',
+        shortcut: ['m', 's'],
         isActive: false,
         items: []
       },
@@ -98,65 +80,6 @@ export const navGroups: NavGroup[] = [
         icon: 'asset',
         shortcut: ['a', 'a'],
         isActive: false,
-        items: [
-          {
-            title: 'All Assets',
-            url: '/dashboard/assets',
-            icon: 'asset'
-          },
-          {
-            title: 'Templates',
-            url: '/dashboard/assets/templates',
-            icon: 'stack2'
-          }
-        ]
-      }
-    ]
-  },
-  {
-    label: 'Elements',
-    items: [
-      {
-        title: 'Forms',
-        url: '#',
-        icon: 'forms',
-        isActive: true,
-        items: [
-          {
-            title: 'Basic Form',
-            url: '/dashboard/forms/basic',
-            icon: 'forms',
-            shortcut: ['f', 'f']
-          },
-          {
-            title: 'Multi-Step Form',
-            url: '/dashboard/forms/multi-step',
-            icon: 'forms'
-          },
-          {
-            title: 'Sheet & Dialog',
-            url: '/dashboard/forms/sheet-form',
-            icon: 'forms'
-          },
-          {
-            title: 'Advanced Patterns',
-            url: '/dashboard/forms/advanced',
-            icon: 'forms'
-          }
-        ]
-      },
-      {
-        title: 'React Query',
-        url: '/dashboard/react-query',
-        icon: 'code',
-        isActive: false,
-        items: []
-      },
-      {
-        title: 'Icons',
-        url: '/dashboard/elements/icons',
-        icon: 'palette',
-        isActive: false,
         items: []
       }
     ]
@@ -165,51 +88,45 @@ export const navGroups: NavGroup[] = [
     label: '',
     items: [
       {
-        title: 'Pro',
-        url: '#',
-        icon: 'pro',
-        isActive: true,
-        items: [
-          {
-            title: 'Exclusive',
-            url: '/dashboard/exclusive',
-            icon: 'exclusive',
-            shortcut: ['e', 'e']
-          }
-        ]
+        title: 'Exclusive',
+        url: '/dashboard/exclusive',
+        icon: 'exclusive',
+        shortcut: ['e', 'e'],
+        isActive: false,
+        items: []
       },
       {
-        title: 'Account',
-        url: '#',
-        icon: 'account',
-        isActive: true,
-        items: [
-          {
-            title: 'Profile',
-            url: '/dashboard/profile',
-            icon: 'profile',
-            shortcut: ['m', 'm']
-          },
-          {
-            title: 'Notifications',
-            url: '/dashboard/notifications',
-            icon: 'notification',
-            shortcut: ['n', 'n']
-          },
-          {
-            title: 'Billing',
-            url: '/dashboard/billing',
-            icon: 'billing',
-            shortcut: ['b', 'b'],
-            access: { requireOrg: true }
-          },
-          {
-            title: 'Login',
-            shortcut: ['l', 'l'],
-            url: '/',
-            icon: 'login'
-          }
-        ]
+        title: 'Profile',
+        url: '/dashboard/profile',
+        icon: 'profile',
+        shortcut: ['m', 'm'],
+        isActive: false,
+        items: []
+      },
+      {
+        title: 'Notifications',
+        url: '/dashboard/notifications',
+        icon: 'notification',
+        shortcut: ['n', 'n'],
+        isActive: false,
+        items: []
+      },
+      {
+        title: 'Billing',
+        url: '/dashboard/billing',
+        icon: 'billing',
+        shortcut: ['b', 'b'],
+        isActive: false,
+        items: [],
+        access: { requireOrg: true }
+      },
+      {
+        title: 'Login',
+        url: '/',
+        icon: 'login',
+        shortcut: ['l', 'l'],
+        isActive: false,
+        items: []
       }
     ]
   }

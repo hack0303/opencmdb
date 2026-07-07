@@ -1,6 +1,6 @@
 import PageContainer from '@/components/layout/page-container';
 import { buttonVariants } from '@/components/ui/button';
-import AssetsListingPage from '@/features/assets/components/assets-listing';
+import AssetsListingPage from '@/components/assets/assets-listing';
 import { searchParamsCache } from '@/lib/searchparams';
 import { cn } from '@/lib/utils';
 import { Icons } from '@/components/icons';

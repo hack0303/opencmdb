@@ -1,23 +1,23 @@
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
-import { templatesQueryOptions } from '@/lib/cmdb/assets/queries';
+import { domainSummaryOptions } from '@/lib/cmdb/domains/queries';
 import PageContainer from '@/components/layout/page-container';
-import AssetViewPage from '@/components/assets/asset-view-page';
+import ServiceForm from '@/components/services/service-form';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Dashboard: Register Asset'
+  title: 'Dashboard: New Service'
 };
 
 export default async function Page() {
   const queryClient = getQueryClient();
-  void queryClient.prefetchQuery(templatesQueryOptions({ limit: 100 }));
+  void queryClient.prefetchQuery(domainSummaryOptions());
 
   return (
     <PageContainer>
       <HydrationBoundary state={dehydrate(queryClient)}>
-        <AssetViewPage assetId='new' />
+        <ServiceForm initialData={null} pageTitle='Create New Service' />
       </HydrationBoundary>
     </PageContainer>
   );

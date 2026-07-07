@@ -1,5 +1,5 @@
 import PageContainer from '@/components/layout/page-container';
-import TemplateViewPage from '@/features/assets/components/template-view-page';
+import TemplateViewPage from '@/components/assets/template-view-page';
 
 export const metadata = {
   title: 'Dashboard: Create Template'

@@ -1,8 +1,8 @@
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
-import { assetByIdOptions, templatesQueryOptions } from '@/features/assets/api/queries';
+import { assetByIdOptions, templatesQueryOptions } from '@/lib/cmdb/assets/queries';
 import PageContainer from '@/components/layout/page-container';
-import AssetViewPage from '@/features/assets/components/asset-view-page';
+import AssetViewPage from '@/components/assets/asset-view-page';
 
 export const dynamic = 'force-dynamic';
 
