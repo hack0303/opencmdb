@@ -363,12 +363,13 @@ const tools: Tool[] = [
   {
     name: 'get_assets',
     description:
-      'List asset instances with optional filters (template, state, tag search, limit). Returns JSON array.',
+      'List asset instances with optional filters (template, state, description, search, limit). Returns JSON array.',
     inputSchema: {
       type: 'object',
       properties: {
         template_id: { type: 'string', description: 'Filter by template ID (e.g. tmpl-db-001)' },
         state: { type: 'string', description: 'Filter by current_state (e.g. RUNNING)' },
+        description: { type: 'string', description: 'Search in description field only' },
         search: { type: 'string', description: 'Search in name, description, tags' },
         limit: { type: 'number', description: 'Max results (default 50)' }
       }
@@ -930,6 +931,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         };
         if (args.template_id) filters.templateId = args.template_id;
         if (args.state) filters.state = args.state;
+        if (args.description) filters.description = args.description;
         if (args.search) filters.search = args.search;
         const result = await assetService.getAssets(filters as any);
         return JSON.stringify(result, null, 2);

@@ -14,6 +14,8 @@ description_for_model: |
   Template CRUD (get_templates, get_template, create_template, update_template, delete_template),
   SQL query (sql_query, list_tables, describe_table).
 
+  get_assets supports: template_id, state, description (ILIKE on description field), search (name/description/tags), limit.
+
   MCP endpoint: http://192.168.1.14:3100/mcp
   Web UI:       http://192.168.1.14:3000
 
@@ -139,7 +141,7 @@ All subsequent requests require `Mcp-Session-Id` + `Mcp-Protocol-Version` header
 
 | Tool | Parameters | Description |
 |------|-----------|-------------|
-| `get_assets` | `template_id`, `state`, `search`, `limit` | List asset instances |
+| `get_assets` | `template_id`, `state`, `description`, `search`, `limit` | List asset instances |
 | `get_asset` | `id` | Get single asset by ID |
 | `register_asset` | `template_id`, `name`, `attributes`, `tags` | Register new asset |
 | `update_asset` | `id`, `attributes`, `current_state`, `tags` | Update existing asset |
