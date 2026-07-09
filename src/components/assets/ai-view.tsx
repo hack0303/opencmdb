@@ -214,7 +214,7 @@ export default function AiaView({ asset }: { asset: AssetInstance }) {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue='yaml' value={format} onValueChange={(v) => setFormat(v as Format)}>
+          <Tabs value={format} onValueChange={(v) => setFormat(v as Format)}>
             <TabsList className='mb-4'>
               <TabsTrigger value='yaml' className='flex items-center gap-1.5'>
                 <Icons.code className='h-3.5 w-3.5' /> Strict YAML

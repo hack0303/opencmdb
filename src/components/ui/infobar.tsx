@@ -649,10 +649,16 @@ function InfobarMenuSkeleton({
 }: React.ComponentProps<'div'> & {
   showIcon?: boolean;
 }) {
-  // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`;
-  }, []);
+  // Random width between 50 to 90% — deferred to client to avoid hydration mismatch.
+  const mounted = React.useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+  const width = React.useMemo(
+    () => (mounted ? `${Math.floor(Math.random() * 40) + 50}%` : '75%'),
+    [mounted]
+  );
 
   return (
     <div

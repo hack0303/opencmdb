@@ -87,6 +87,7 @@ import {
   IconUsers,
   IconVideo,
   IconCrown,
+  IconTable,
   IconX
 } from '@tabler/icons-react';
 
@@ -127,6 +128,7 @@ export const Icons = {
   dashboard: IconLayoutDashboard,
   kanban: IconLayoutKanban,
   panelLeft: IconLayoutSidebar,
+  table: IconTable,
 
   // User
   user: IconUser,

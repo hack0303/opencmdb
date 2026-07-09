@@ -20,6 +20,7 @@ type PageProps = {
 export default async function Page(props: PageProps) {
   const searchParams = await props.searchParams;
   searchParamsCache.parse(searchParams);
+  const view = searchParamsCache.get('view') ?? undefined;
 
   return (
     <PageContainer
@@ -27,6 +28,24 @@ export default async function Page(props: PageProps) {
       pageDescription='Register and manage all infrastructure assets — hardware, software, databases.'
       pageHeaderAction={
         <div className='flex gap-2'>
+          {/* View Toggle */}
+          <Link
+            href={view === 'ai' ? '/dashboard/assets' : '/dashboard/assets?view=ai'}
+            className={cn(
+              buttonVariants({ variant: view === 'ai' ? 'default' : 'outline' }),
+              'text-xs md:text-sm'
+            )}
+          >
+            {view === 'ai' ? (
+              <>
+                <Icons.table className='mr-2 h-4 w-4' /> Table
+              </>
+            ) : (
+              <>
+                <Icons.sparkles className='mr-2 h-4 w-4' /> AI View
+              </>
+            )}
+          </Link>
           <Link
             href='/dashboard/assets/templates'
             className={cn(buttonVariants({ variant: 'outline' }), 'text-xs md:text-sm')}
@@ -39,7 +58,7 @@ export default async function Page(props: PageProps) {
         </div>
       }
     >
-      <AssetsListingPage />
+      <AssetsListingPage view={view} />
     </PageContainer>
   );
 }

@@ -3,9 +3,10 @@ import { getQueryClient } from '@/lib/query-client';
 import { searchParamsCache } from '@/lib/searchparams';
 import { assetsQueryOptions } from '@/lib/cmdb/assets/queries';
 import { AssetTable, AssetTableSkeleton } from './assets-table';
+import AiListingView from './ai-listing-view';
 import { Suspense } from 'react';
 
-export default function AssetsListingPage() {
+export default function AssetsListingPage({ view }: { view?: string }) {
   const page = searchParamsCache.get('page');
   const search = searchParamsCache.get('name');
   const pageLimit = searchParamsCache.get('perPage');
@@ -25,9 +26,15 @@ export default function AssetsListingPage() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <Suspense fallback={<AssetTableSkeleton />}>
-        <AssetTable />
-      </Suspense>
+      {view === 'ai' ? (
+        <Suspense fallback={<AssetTableSkeleton />}>
+          <AiListingView filters={filters} />
+        </Suspense>
+      ) : (
+        <Suspense fallback={<AssetTableSkeleton />}>
+          <AssetTable />
+        </Suspense>
+      )}
     </HydrationBoundary>
   );
 }

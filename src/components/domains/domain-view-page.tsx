@@ -8,8 +8,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Icons } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { domainByIdOptions } from '@/lib/cmdb/domains/queries';
-import { TopologyView } from './topology-view';
+
+const TopologyView = dynamic(() => import('./topology-view').then((mod) => mod.TopologyView), {
+  ssr: false,
+  loading: () => <Skeleton className='h-[500px] w-full' />
+});
 import { AddLinkDialog } from './add-link-dialog';
 import DomainAiView from './domain-ai-view';
 import type { Service } from '@/lib/cmdb/services/types';

@@ -14,7 +14,8 @@ export const searchParams = {
   role: parseAsString,
   state: parseAsString,
   domain: parseAsString,
-  sort: parseAsString
+  sort: parseAsString,
+  view: parseAsString
   // advanced filter
   // filters: getFiltersStateParser().withDefault([]),
   // joinOperator: parseAsStringEnum(['and', 'or']).withDefault('and')
