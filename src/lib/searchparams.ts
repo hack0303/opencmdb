@@ -15,7 +15,9 @@ export const searchParams = {
   state: parseAsString,
   domain: parseAsString,
   sort: parseAsString,
-  view: parseAsString
+  view: parseAsString,
+  desc: parseAsString,
+  templateId: parseAsString
   // advanced filter
   // filters: getFiltersStateParser().withDefault([]),
   // joinOperator: parseAsStringEnum(['and', 'or']).withDefault('and')

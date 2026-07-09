@@ -40,15 +40,31 @@ function buildWhereClause(
         params.push(`%${val}%`);
         idx++;
         break;
+      case 'description':
+        clauses.push(`a.description ILIKE $${idx}`);
+        params.push(`%${val}%`);
+        idx++;
+        break;
       case 'category':
         clauses.push(`a.category = $${idx}`);
         params.push(val);
         idx++;
         break;
       case 'templateId':
-        clauses.push(`a.template_id = $${idx}`);
-        params.push(val);
-        idx++;
+        if (typeof val === 'string' && val.includes(',')) {
+          const ids = (val as string)
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+          const placeholders = ids.map((_: string, i: number) => `$${idx + i}`).join(', ');
+          clauses.push(`a.template_id IN (${placeholders})`);
+          params.push(...ids);
+          idx += ids.length;
+        } else {
+          clauses.push(`a.template_id = $${idx}`);
+          params.push(val);
+          idx++;
+        }
         break;
       case 'state':
         clauses.push(`a.current_state = $${idx}`);

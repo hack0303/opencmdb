@@ -76,6 +76,13 @@ export const columns: ColumnDef<AssetInstance>[] = [
     id: 'description',
     accessorKey: 'description',
     header: ({ column }) => <DataTableColumnHeader column={column} title='Description' />,
+    meta: {
+      label: 'Description',
+      placeholder: 'Search descriptions...',
+      variant: 'text',
+      icon: Icons.text
+    },
+    enableColumnFilter: true,
     cell: ({ cell }) => (
       <span className='text-muted-foreground line-clamp-1 max-w-xs'>{cell.getValue<string>()}</span>
     )
@@ -106,6 +113,12 @@ export const columns: ColumnDef<AssetInstance>[] = [
     id: 'templateId',
     accessorKey: 'templateId',
     header: ({ column }) => <DataTableColumnHeader column={column} title='Type' />,
+    enableColumnFilter: true,
+    meta: {
+      label: 'Template',
+      variant: 'multiSelect' as const,
+      options: [] as { value: string; label: string }[]
+    },
     cell: ({ row }) => {
       const tid = row.getValue<string>('templateId');
       return (
