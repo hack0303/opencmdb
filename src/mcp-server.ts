@@ -48,12 +48,316 @@ const HOST = process.env.MCP_HOST || '0.0.0.0';
 // ─── Service Layer (reuses the same service.ts used by Next.js frontend) ───
 // require() works with tsx — it gives us named exports directly.
 
-const service = require('../src/features/assets/api/service.js');
+const assetService = require('./lib/cmdb/assets/service');
+const domainService = require('./lib/cmdb/domains/service');
+const serviceService = require('./lib/cmdb/services/service');
 
 // ─── Tool Definitions ───
-//   3 groups: Asset Management · Templates · Database Utilities · Migration
+//   5 groups: Domain · Service · Asset · Template · Database Utilities · Migration
 
 const tools: Tool[] = [
+  // ═══════════ Domain Management ═══════════
+
+  {
+    name: 'get_domains',
+    description:
+      'List business domains with optional search. Returns JSON with items and total_items.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        search: { type: 'string', description: 'Search in name, description, tags' },
+        tag: { type: 'string', description: 'Filter by tag' },
+        limit: { type: 'number', description: 'Max results (default 50)' }
+      }
+    }
+  },
+  {
+    name: 'get_domain',
+    description: 'Get a single domain by ID with full details (topology graph, etc.).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Domain ID (e.g. sub-...)' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'domain_ai_view',
+    description:
+      'Get an AI-optimized YAML summary of a domain — includes description, tags, service count, topology links. Minimizes token usage.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Domain ID' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'create_domain',
+    description:
+      'Create a new business domain. Provide name, description, optional tags, topology_data, sort_order.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Domain name (e.g. C-Land Base Domain)' },
+        description: { type: 'string', description: 'What this domain covers' },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional classification tags'
+        },
+        topology_data: {
+          type: 'object',
+          description: 'Optional topology graph: { description, nodes, edges }'
+        },
+        sort_order: {
+          type: 'number',
+          description: 'Optional sort order (default 0)'
+        }
+      },
+      required: ['name']
+    }
+  },
+  {
+    name: 'update_domain',
+    description: 'Update an existing domain. Only provided fields are changed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Domain ID to update' },
+        name: { type: 'string' },
+        description: { type: 'string' },
+        tags: { type: 'array', items: { type: 'string' } },
+        topology_data: { type: 'object' },
+        sort_order: { type: 'number' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'delete_domain',
+    description: 'Delete a domain by ID (soft-delete).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Domain ID to delete' }
+      },
+      required: ['id']
+    }
+  },
+
+  // ═══════════ Service Management ═══════════
+
+  {
+    name: 'get_services',
+    description:
+      'List services (bounded contexts) with optional filters. Returns JSON with items and total_items.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        search: { type: 'string', description: 'Search in name, description, tags' },
+        domain_id: { type: 'string', description: 'Filter by domain ID' },
+        tag: { type: 'string', description: 'Filter by tag' },
+        limit: { type: 'number', description: 'Max results (default 50)' }
+      }
+    }
+  },
+  {
+    name: 'get_service',
+    description: 'Get a single service by ID with full details (domain name, assets, links).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Service ID (e.g. svc-...)' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'service_ai_view',
+    description:
+      'Get an AI-optimized YAML summary of a service — includes description, domain, tags, semantic roles, bound assets, topology links. Minimizes token usage.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Service ID' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'create_service',
+    description:
+      'Create a new service (bounded context) under a domain. Provide name, domain_id, optional description, tags, semantic_roles, sort_order.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Service name (e.g. cland-user-service)' },
+        domain_id: { type: 'string', description: 'Parent domain ID' },
+        description: { type: 'string', description: 'What this bounded context does' },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional classification tags'
+        },
+        semantic_roles: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              role: { type: 'string' },
+              description: { type: 'string' }
+            }
+          },
+          description: 'Optional semantic role definitions'
+        },
+        sort_order: {
+          type: 'number',
+          description: 'Optional sort order (default 0)'
+        }
+      },
+      required: ['name', 'domain_id']
+    }
+  },
+  {
+    name: 'update_service',
+    description: 'Update an existing service. Only provided fields are changed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Service ID to update' },
+        name: { type: 'string' },
+        description: { type: 'string' },
+        domain_id: { type: 'string' },
+        tags: { type: 'array', items: { type: 'string' } },
+        semantic_roles: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              role: { type: 'string' },
+              description: { type: 'string' }
+            }
+          }
+        },
+        sort_order: { type: 'number' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'delete_service',
+    description: 'Delete a service by ID (soft-delete).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Service ID to delete' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'bind_asset_to_service',
+    description:
+      'Bind an existing asset to a service. Provide service_id, asset_id, optional binding_type, semantic_role, metadata.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        service_id: { type: 'string', description: 'Service ID (e.g. svc-...)' },
+        asset_id: { type: 'string', description: 'Asset ID (e.g. ast-db-001)' },
+        binding_type: {
+          type: 'string',
+          description: 'Optional binding type (e.g. primary, replica)'
+        },
+        semantic_role: {
+          type: 'string',
+          description: 'Optional semantic role (e.g. data_store, compute)'
+        }
+      },
+      required: ['service_id', 'asset_id']
+    }
+  },
+  {
+    name: 'set_root_binding',
+    description:
+      'Set an asset as the root/primary asset for a service. Provide service_id and asset_id. The root asset appears first in the service topology.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        service_id: { type: 'string', description: 'Service ID' },
+        asset_id: { type: 'string', description: 'Asset ID to set as root' }
+      },
+      required: ['service_id', 'asset_id']
+    }
+  },
+  {
+    name: 'add_link',
+    description:
+      'Add a topology link (edge) between two services within a domain. Provide domain_id, source_svc_id, target_svc_id, link_type, label.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        domain_id: { type: 'string', description: 'Domain ID that owns this edge' },
+        source_svc_id: { type: 'string', description: 'Source service ID' },
+        target_svc_id: { type: 'string', description: 'Target service ID' },
+        link_type: {
+          type: 'string',
+          description: 'One of: sync, async_command, async_event'
+        },
+        label: { type: 'string', description: 'Human-readable label (e.g. grpc, kafka topic)' }
+      },
+      required: ['domain_id', 'source_svc_id', 'target_svc_id', 'link_type', 'label']
+    }
+  },
+  {
+    name: 'remove_links',
+    description:
+      'Remove one or more topology links by ID. Provide a domain_id and an array of link_ids.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        domain_id: { type: 'string', description: 'Domain ID that owns these links' },
+        link_ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of link IDs to delete'
+        }
+      },
+      required: ['domain_id', 'link_ids']
+    }
+  },
+  {
+    name: 'add_links',
+    description:
+      'Batch add multiple topology links at once. Provide an array of link objects, each with domain_id, source_svc_id, target_svc_id, link_type, label.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        links: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              domain_id: { type: 'string' },
+              source_svc_id: { type: 'string' },
+              target_svc_id: { type: 'string' },
+              link_type: {
+                type: 'string',
+                description: 'One of: sync, async_command, async_event'
+              },
+              label: { type: 'string' }
+            },
+            required: ['domain_id', 'source_svc_id', 'target_svc_id', 'link_type', 'label']
+          },
+          minItems: 1
+        }
+      },
+      required: ['links']
+    }
+  },
+
   // ═══════════ Asset Management ═══════════
 
   {
@@ -242,34 +546,380 @@ const tools: Tool[] = [
       },
       required: ['table']
     }
-  },
+  }
 
   // ═══════════ Migration ═══════════
-
-  {
-    name: 'run_migration',
-    description: 'Apply pending SQL migrations (scripts/nnn-*.sql). Use dry_run to preview.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        seed_only: { type: 'boolean', description: 'Only seed files' },
-        schema_only: { type: 'boolean', description: 'Only schema files' },
-        dry_run: { type: 'boolean', description: 'Preview without executing' }
-      }
-    }
-  },
-  {
-    name: 'list_migrations',
-    description: 'List all migration SQL files in order.',
-    inputSchema: { type: 'object', properties: {} }
-  }
 ];
 
 // ─── Tool Handlers — delegate to service.ts ───
 
 async function handleToolCall(name: string, args: Record<string, unknown>): Promise<string> {
   switch (name) {
-    // ── Asset Management (delegates to service.ts) ──
+    // ── Domain Management ──
+
+    case 'get_domains': {
+      try {
+        const filters: Record<string, unknown> = {
+          page: 1,
+          limit: Math.min(Math.max(+(args.limit ?? 50), 1), 200)
+        };
+        if (args.search) filters.search = args.search;
+        const result = await domainService.getDomains(filters as any);
+        return JSON.stringify(result, null, 2);
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'get_domain': {
+      const id = args.id as string;
+      if (!id) return '❌ id is required.';
+      try {
+        const domain = await domainService.getDomainById(id);
+        return domain ? JSON.stringify(domain, null, 2) : `❌ Domain "${id}" not found.`;
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'domain_ai_view': {
+      const id = args.id as string;
+      if (!id) return '❌ id is required.';
+      try {
+        const domain = await domainService.getDomainById(id);
+        if (!domain) return `❌ Domain "${id}" not found.`;
+        const services = await domainService.getDomains({ limit: 1 });
+        const svcCount = services.total_items;
+        const linkCount = (domain as any).topologyData?.edges?.length ?? 0;
+        const lines: string[] = [];
+        lines.push('domain:');
+        lines.push(`  name: "${domain.name}"`);
+        lines.push(`  description: "${domain.description}"`);
+        lines.push(`  tags: [${domain.tags.map((t: string) => `"${t}"`).join(', ')}]`);
+        lines.push(`  services: ${svcCount}`);
+        lines.push(`  topology_links: ${linkCount}`);
+        const topo = (domain as any).topologyData;
+        if (topo?.edges?.length > 0) {
+          lines.push('  links:');
+          for (const e of topo.edges) {
+            lines.push(`    - source: "${e.source}"`);
+            lines.push(`      target: "${e.target}"`);
+            lines.push(`      type: ${e.type}`);
+            if (e.label) lines.push(`      label: "${e.label}"`);
+          }
+        }
+        return lines.join('\n');
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'create_domain': {
+      const name = args.name as string;
+      if (!name) return '❌ name is required.';
+      try {
+        const payload: Record<string, unknown> = {
+          name,
+          description: (args.description as string) || '',
+          tags: (args.tags as string[]) || [],
+          topologyData: (args.topology_data as Record<string, unknown>) || {
+            description: '',
+            nodes: [],
+            edges: []
+          },
+          sortOrder: (args.sort_order as number) ?? 0
+        };
+        const domain = await domainService.createDomain(payload as any);
+        return JSON.stringify({ id: domain.id, name: domain.name, status: 'created' }, null, 2);
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'update_domain': {
+      const id = args.id as string;
+      if (!id) return '❌ id is required.';
+      try {
+        const payload: Record<string, unknown> = {};
+        if (args.name !== undefined) payload.name = args.name;
+        if (args.description !== undefined) payload.description = args.description;
+        if (args.tags !== undefined) payload.tags = args.tags;
+        if (args.topology_data !== undefined) payload.topologyData = args.topology_data;
+        if (args.sort_order !== undefined) payload.sortOrder = args.sort_order;
+        const domain = await domainService.updateDomain(id, payload as any);
+        return domain
+          ? JSON.stringify({ id: domain.id, status: 'updated' }, null, 2)
+          : `❌ Domain "${id}" not found.`;
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'delete_domain': {
+      const id = args.id as string;
+      if (!id) return '❌ id is required.';
+      try {
+        await domainService.deleteDomain(id);
+        return JSON.stringify({ id, status: 'deleted' }, null, 2);
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    // ── Service Management ──
+
+    case 'get_services': {
+      try {
+        const filters: Record<string, unknown> = {
+          page: 1,
+          limit: Math.min(Math.max(+(args.limit ?? 50), 1), 200)
+        };
+        if (args.search) filters.search = args.search;
+        if (args.domain_id) filters.domainId = args.domain_id;
+        if (args.tag) filters.tag = args.tag;
+        const result = await serviceService.getServices(filters as any);
+        return JSON.stringify(result, null, 2);
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'get_service': {
+      const id = args.id as string;
+      if (!id) return '❌ id is required.';
+      try {
+        const svc = await serviceService.getServiceById(id);
+        return svc ? JSON.stringify(svc, null, 2) : `❌ Service "${id}" not found.`;
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'service_ai_view': {
+      const id = args.id as string;
+      if (!id) return '❌ id is required.';
+      try {
+        const svc = await serviceService.getServiceById(id);
+        if (!svc) return `❌ Service "${id}" not found.`;
+        const lines: string[] = [];
+        lines.push('service:');
+        lines.push(`  name: "${svc.name}"`);
+        lines.push(`  description: "${svc.description}"`);
+        lines.push(`  domain: "${(svc as any).domainName ?? (svc as any).domainId}"`);
+        lines.push(`  tags: [${(svc.tags || []).map((t: string) => `"${t}"`).join(', ')}]`);
+        const roles = (svc as any).semanticRoles || [];
+        if (roles.length > 0) {
+          lines.push('  semantic_roles:');
+          for (const r of roles) {
+            lines.push(`    - role: "${r.role}"`);
+            lines.push(`      description: "${r.description}"`);
+          }
+        }
+        const assets = (svc as any).assets || [];
+        if (assets.length > 0) {
+          lines.push('  bound_assets:');
+          for (const a of assets) {
+            lines.push(`    - name: "${a.name}"`);
+            lines.push(`      type: "${a.templateName}"`);
+            lines.push(`      state: ${a.currentState}`);
+          }
+        }
+        const links = (svc as any).links;
+        if (links) {
+          if (links.asSource?.length > 0) {
+            lines.push('  outgoing_links:');
+            for (const l of links.asSource) {
+              lines.push(`    - target: "${l.targetName}"`);
+              lines.push(`      type: ${l.type}`);
+              if (l.label) lines.push(`      label: "${l.label}"`);
+            }
+          }
+          if (links.asTarget?.length > 0) {
+            lines.push('  incoming_links:');
+            for (const l of links.asTarget) {
+              lines.push(`    - source: "${l.sourceName}"`);
+              lines.push(`      type: ${l.type}`);
+              if (l.label) lines.push(`      label: "${l.label}"`);
+            }
+          }
+        }
+        return lines.join('\n');
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'create_service': {
+      const name = args.name as string;
+      const domainId = args.domain_id as string;
+      if (!name || !domainId) return '❌ name and domain_id are required.';
+      try {
+        const payload: Record<string, unknown> = {
+          name,
+          domainId,
+          description: (args.description as string) || '',
+          tags: (args.tags as string[]) || [],
+          semanticRoles: (args.semantic_roles as Record<string, unknown>[]) || [],
+          sortOrder: (args.sort_order as number) ?? 0
+        };
+        const svc = await serviceService.createService(payload as any);
+        return JSON.stringify({ id: svc.id, name: svc.name, status: 'created' }, null, 2);
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'update_service': {
+      const id = args.id as string;
+      if (!id) return '❌ id is required.';
+      try {
+        const payload: Record<string, unknown> = {};
+        if (args.name !== undefined) payload.name = args.name;
+        if (args.description !== undefined) payload.description = args.description;
+        if (args.domain_id !== undefined) payload.domainId = args.domain_id;
+        if (args.tags !== undefined) payload.tags = args.tags;
+        if (args.semantic_roles !== undefined) payload.semanticRoles = args.semantic_roles;
+        if (args.sort_order !== undefined) payload.sortOrder = args.sort_order;
+        const svc = await serviceService.updateService(id, payload as any);
+        return svc
+          ? JSON.stringify({ id: svc.id, status: 'updated' }, null, 2)
+          : `❌ Service "${id}" not found.`;
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'delete_service': {
+      const id = args.id as string;
+      if (!id) return '❌ id is required.';
+      try {
+        await serviceService.deleteService(id);
+        return JSON.stringify({ id, status: 'deleted' }, null, 2);
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'bind_asset_to_service': {
+      const serviceId = args.service_id as string;
+      const assetId = args.asset_id as string;
+      if (!serviceId || !assetId) return '❌ service_id and asset_id are required.';
+      try {
+        const payload: Record<string, unknown> = {
+          serviceId,
+          assetId
+        };
+        if (args.binding_type) payload.bindingType = args.binding_type;
+        if (args.semantic_role) payload.semanticRole = args.semantic_role;
+        await serviceService.bindAssetToService(payload as any);
+        return JSON.stringify(
+          { service_id: serviceId, asset_id: assetId, status: 'bound' },
+          null,
+          2
+        );
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'set_root_binding': {
+      const serviceId = args.service_id as string;
+      const assetId = args.asset_id as string;
+      if (!serviceId || !assetId) return '❌ service_id and asset_id are required.';
+      try {
+        await serviceService.setRootBinding(serviceId, assetId);
+        return JSON.stringify(
+          { service_id: serviceId, asset_id: assetId, status: 'root_set' },
+          null,
+          2
+        );
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'add_link': {
+      const domainId = args.domain_id as string;
+      const sourceSvcId = args.source_svc_id as string;
+      const targetSvcId = args.target_svc_id as string;
+      const linkType = args.link_type as string;
+      const label = args.label as string;
+      if (!domainId || !sourceSvcId || !targetSvcId || !linkType || !label) {
+        return '❌ domain_id, source_svc_id, target_svc_id, link_type, and label are required.';
+      }
+      if (!['sync', 'async_command', 'async_event'].includes(linkType)) {
+        return '❌ link_type must be one of: sync, async_command, async_event';
+      }
+      try {
+        await serviceService.createServiceLink({
+          domainId,
+          sourceSvcId,
+          targetSvcId,
+          linkType: linkType as 'sync' | 'async_command' | 'async_event',
+          label
+        });
+        return JSON.stringify(
+          {
+            source_svc_id: sourceSvcId,
+            target_svc_id: targetSvcId,
+            link_type: linkType,
+            status: 'created'
+          },
+          null,
+          2
+        );
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'remove_links': {
+      const domainId = args.domain_id as string;
+      const linkIds = args.link_ids as string[];
+      if (!domainId || !Array.isArray(linkIds) || linkIds.length === 0) {
+        return '❌ domain_id and link_ids array are required.';
+      }
+      try {
+        let count = 0;
+        for (const linkId of linkIds) {
+          await serviceService.deleteServiceLink(linkId, domainId);
+          count++;
+        }
+        return JSON.stringify({ count, status: 'deleted' }, null, 2);
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    case 'add_links': {
+      const links = args.links as Record<string, unknown>[];
+      if (!Array.isArray(links) || links.length === 0) {
+        return '❌ links array is required with at least one item.';
+      }
+      try {
+        const items = links.map((l) => {
+          const lt = l.link_type as string;
+          if (!['sync', 'async_command', 'async_event'].includes(lt)) {
+            throw new Error(
+              `Invalid link_type "${lt}". Must be sync, async_command, or async_event.`
+            );
+          }
+          return {
+            domainId: l.domain_id as string,
+            sourceSvcId: l.source_svc_id as string,
+            targetSvcId: l.target_svc_id as string,
+            linkType: lt as 'sync' | 'async_command' | 'async_event',
+            label: (l.label as string) || ''
+          };
+        });
+        const count = await serviceService.createServiceLinks(items);
+        return JSON.stringify({ count, status: 'created' }, null, 2);
+      } catch (err: any) {
+        return `❌ ${err.message}`;
+      }
+    }
+
+    // ── Asset Management ──
 
     case 'get_assets': {
       try {
@@ -281,7 +931,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         if (args.template_id) filters.templateId = args.template_id;
         if (args.state) filters.state = args.state;
         if (args.search) filters.search = args.search;
-        const result = await service.getAssets(filters as any);
+        const result = await assetService.getAssets(filters as any);
         return JSON.stringify(result, null, 2);
       } catch (err: any) {
         return `❌ ${err.message}`;
@@ -292,7 +942,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       const id = args.id as string;
       if (!id) return '❌ id is required.';
       try {
-        const asset = await service.getAssetById(id);
+        const asset = await assetService.getAssetById(id);
         return asset ? JSON.stringify(asset, null, 2) : `❌ Asset "${id}" not found.`;
       } catch (err: any) {
         return `❌ ${err.message}`;
@@ -308,7 +958,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       }
       try {
         // Fetch template defaults for state_mapping and capabilities
-        const tmpl = await service.getTemplateById(templateId);
+        const tmpl = await assetService.getTemplateById(templateId);
         if (!tmpl) return `❌ Template "${templateId}" not found.`;
 
         const payload: Record<string, unknown> = {
@@ -324,7 +974,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
           stateMapping: (tmpl as any).defaultStateMapping,
           capabilities: (tmpl as any).defaultCapabilities || []
         };
-        const asset = await service.createAsset(payload as any);
+        const asset = await assetService.createAsset(payload as any);
         return JSON.stringify({ id: asset.id, status: 'created' }, null, 2);
       } catch (err: any) {
         return `❌ ${err.message}`;
@@ -340,7 +990,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         if (args.current_state !== undefined) payload.currentState = args.current_state;
         if (args.tags !== undefined) payload.tags = args.tags;
         if (args.description !== undefined) payload.description = args.description;
-        const asset = await service.updateAsset(id, payload as any);
+        const asset = await assetService.updateAsset(id, payload as any);
         return asset
           ? JSON.stringify({ id: asset.id, status: 'updated' }, null, 2)
           : `❌ Asset "${id}" not found.`;
@@ -353,7 +1003,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       const id = args.id as string;
       if (!id) return '❌ id is required.';
       try {
-        await service.deleteAsset(id);
+        await assetService.deleteAsset(id);
         return JSON.stringify({ id, status: 'deleted' }, null, 2);
       } catch (err: any) {
         return `❌ ${err.message}`;
@@ -366,7 +1016,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       try {
         const filters: Record<string, unknown> = { page: 1, limit: 50 };
         if (args.category) filters.category = args.category;
-        const result = await service.getTemplates(filters as any);
+        const result = await assetService.getTemplates(filters as any);
         return JSON.stringify(result, null, 2);
       } catch (err: any) {
         return `❌ ${err.message}`;
@@ -377,7 +1027,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       const id = args.id as string;
       if (!id) return '❌ id is required.';
       try {
-        const tmpl = await service.getTemplateById(id);
+        const tmpl = await assetService.getTemplateById(id);
         return tmpl ? JSON.stringify(tmpl, null, 2) : `❌ Template "${id}" not found.`;
       } catch (err: any) {
         return `❌ ${err.message}`;
@@ -404,7 +1054,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
           },
           defaultCapabilities: args.default_capabilities || []
         };
-        const tmpl = await service.createTemplate(payload as any);
+        const tmpl = await assetService.createTemplate(payload as any);
         return JSON.stringify({ id: tmpl.id, name: tmpl.name, status: 'created' }, null, 2);
       } catch (err: any) {
         return `❌ ${err.message}`;
@@ -425,7 +1075,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         if (args.default_capabilities !== undefined)
           payload.defaultCapabilities = args.default_capabilities;
         if (args.tags !== undefined) payload.tags = args.tags;
-        const tmpl = await service.updateTemplate(id, payload as any);
+        const tmpl = await assetService.updateTemplate(id, payload as any);
         return tmpl
           ? JSON.stringify({ id: tmpl.id, status: 'updated' }, null, 2)
           : `❌ Template "${id}" not found.`;
@@ -438,7 +1088,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       const id = args.id as string;
       if (!id) return '❌ id is required.';
       try {
-        await service.deleteTemplate(id);
+        await assetService.deleteTemplate(id);
         return JSON.stringify({ id, status: 'deleted' }, null, 2);
       } catch (err: any) {
         return `❌ ${err.message}`;
@@ -518,51 +1168,6 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       } catch (err: any) {
         return `❌ ${err.message}`;
       }
-    }
-
-    // ── Migration ──
-
-    case 'run_migration': {
-      const { query } = require('../src/lib/db.js');
-      const scriptsDir = resolve(PROJECT_ROOT, 'scripts');
-      const files = readdirSync(scriptsDir)
-        .filter((f) => /^\d{3}-.+\.sql$/.test(f))
-        .sort();
-      if (files.length === 0) return '⚠ No migration files found.';
-
-      const seedOnly = args.seed_only === true;
-      const schemaOnly = args.schema_only === true;
-      const dryRun = args.dry_run === true;
-      const lines: string[] = [];
-
-      for (const file of files) {
-        const isSeed = file.includes('seed');
-        if (seedOnly && !isSeed) continue;
-        if (schemaOnly && isSeed) continue;
-        if (dryRun) {
-          lines.push(`[DRY-RUN] ${file}`);
-          continue;
-        }
-        const sql = readFileSync(resolve(scriptsDir, file), 'utf-8');
-        try {
-          await query(sql);
-          lines.push(`✅ ${file}`);
-        } catch (err: any) {
-          lines.push(`❌ ${file}: ${err.message}`);
-          return lines.join('\n');
-        }
-      }
-      if (dryRun && lines.length === 0) lines.push('(no files to run)');
-      return lines.join('\n');
-    }
-
-    case 'list_migrations': {
-      const files = readdirSync(resolve(PROJECT_ROOT, 'scripts'))
-        .filter((f) => /^\d{3}-.+\.sql$/.test(f))
-        .sort();
-      return files.length === 0
-        ? '(no migration files)'
-        : files.map((f, i) => `${i + 1}. ${f}`).join('\n');
     }
 
     default:

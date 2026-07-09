@@ -150,7 +150,7 @@ export async function getServiceById(id: string): Promise<ServiceWithDetails | n
     JOIN asset_instances ast ON ast.id = sab.asset_id AND ast.deleted_at IS NULL
     LEFT JOIN asset_templates tmpl ON tmpl.id = ast.template_id
     WHERE sab.service_id = $1 AND sab.deleted_at IS NULL
-    ORDER BY ast.name ASC`,
+    ORDER BY sab.sort_order ASC NULLS LAST, ast.name ASC`,
     [id]
   );
   service.assets = assets as ServiceWithDetails['assets'];
@@ -228,6 +228,7 @@ export async function updateService(
     sets.push(`name = $${idx++}`);
     params.push(data.name);
   }
+
   if (data.description !== undefined) {
     sets.push(`description = $${idx++}`);
     params.push(data.description);
@@ -324,6 +325,76 @@ export async function createServiceLink(data: {
   return true;
 }
 
+export async function createServiceLinks(
+  items: {
+    domainId: string;
+    sourceSvcId: string;
+    targetSvcId: string;
+    linkType: 'sync' | 'async_command' | 'async_event';
+    label: string;
+    metadata?: Record<string, unknown>;
+  }[]
+): Promise<number> {
+  if (items.length === 0) return 0;
+
+  const domainId = items[0].domainId;
+  const ts = Date.now();
+  const edges: Record<string, unknown>[] = [];
+  const values: unknown[] = [];
+  const placeholders: string[] = [];
+  let idx = 1;
+
+  for (let i = 0; i < items.length; i++) {
+    const d = items[i];
+    const linkId = `lnk-${ts}-${i}`;
+    placeholders.push(
+      `($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}::link_type, $${idx + 5}, $${idx + 6}::jsonb)`
+    );
+    values.push(
+      linkId,
+      d.domainId,
+      d.sourceSvcId,
+      d.targetSvcId,
+      d.linkType,
+      d.label,
+      JSON.stringify(d.metadata ?? {})
+    );
+    idx += 7;
+
+    edges.push({
+      id: linkId,
+      source: d.sourceSvcId,
+      target: d.targetSvcId,
+      label: d.label,
+      type: d.linkType
+    });
+  }
+
+  await query(
+    `INSERT INTO service_links (id, domain_id, source_svc_id, target_svc_id, link_type, label, metadata)
+     VALUES ${placeholders.join(', ')}
+     ON CONFLICT (domain_id, source_svc_id, target_svc_id, link_type) DO UPDATE
+       SET label = EXCLUDED.label, metadata = EXCLUDED.metadata, deleted_at = NULL`,
+    values
+  );
+
+  // Batch update domain topology_data with all edges at once
+  const edgesJson = JSON.stringify(edges);
+  await query(
+    `UPDATE domains
+     SET topology_data = jsonb_set(
+       topology_data,
+       '{edges}',
+       COALESCE(topology_data->'edges', '[]'::jsonb) || $1::jsonb,
+       true
+     )
+     WHERE id = $2 AND deleted_at IS NULL`,
+    [edgesJson, domainId]
+  );
+
+  return items.length;
+}
+
 export async function updateServiceLink(data: {
   linkId: string;
   domainId: string;
@@ -353,14 +424,36 @@ export async function updateServiceLink(data: {
     [data.linkId, data.domainId]
   );
 
-  // 3. Create new link (reuses existing logic)
-  await createServiceLink({
-    domainId: data.domainId,
-    sourceSvcId: data.sourceSvcId,
-    targetSvcId: data.targetSvcId,
-    linkType: data.linkType,
-    label: data.label
-  });
+  // 3. Re-insert with same ID (ON CONFLICT handles the soft-deleted old row)
+  const newLinkId = data.linkId;
+  await query(
+    `INSERT INTO service_links (id, domain_id, source_svc_id, target_svc_id, link_type, label, metadata)
+     VALUES ($1, $2, $3, $4, $5::link_type, $6, $7::jsonb)
+     ON CONFLICT (domain_id, source_svc_id, target_svc_id, link_type) DO UPDATE
+       SET id = EXCLUDED.id, label = EXCLUDED.label, deleted_at = NULL, updated_at = now()`,
+    [newLinkId, data.domainId, data.sourceSvcId, data.targetSvcId, data.linkType, data.label, '{}']
+  );
+
+  // 4. Ensure topology_data edge has the correct ID
+  await query(
+    `UPDATE domains
+     SET topology_data = jsonb_set(
+       topology_data,
+       '{edges}',
+       (SELECT COALESCE(
+         jsonb_agg(
+           CASE WHEN elem->>'id' = $1 THEN
+             jsonb_build_object('id', $1, 'source', $2, 'target', $3, 'label', $4, 'type', $5)
+           ELSE elem END
+         ),
+         '[]'::jsonb
+       )
+       FROM jsonb_array_elements(COALESCE(topology_data->'edges', '[]'::jsonb)) AS elem),
+       true
+     )
+     WHERE id = $6 AND deleted_at IS NULL`,
+    [newLinkId, data.sourceSvcId, data.targetSvcId, data.label, data.linkType, data.domainId]
+  );
 
   return true;
 }
@@ -431,13 +524,24 @@ export async function bindAssetToService(data: {
   semanticRole?: string;
   metadata?: Record<string, unknown>;
 }): Promise<boolean> {
+  // Get next sort_order for this service
+  const maxRow = await queryOne<{ max_sort: number }>(
+    `SELECT COALESCE(MAX(sort_order), -1) + 1 AS max_sort
+     FROM service_asset_bindings
+     WHERE service_id = $1 AND deleted_at IS NULL`,
+    [data.serviceId]
+  );
+  const nextSort = maxRow?.max_sort ?? 0;
+
   await query(
-    `INSERT INTO service_asset_bindings (id, service_id, asset_id, binding_type, semantic_role, metadata)
-     VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+    `INSERT INTO service_asset_bindings (id, service_id, asset_id, binding_type, semantic_role, metadata, sort_order)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
      ON CONFLICT (service_id, asset_id) DO UPDATE
        SET binding_type = EXCLUDED.binding_type,
            semantic_role = EXCLUDED.semantic_role,
            metadata = EXCLUDED.metadata,
+           sort_order = EXCLUDED.sort_order,
+           updated_at = now(),
            deleted_at = NULL`,
     [
       `bind-${Date.now()}`,
@@ -445,8 +549,29 @@ export async function bindAssetToService(data: {
       data.assetId,
       data.bindingType ?? 'direct',
       data.semanticRole ?? null,
-      JSON.stringify(data.metadata ?? {})
+      JSON.stringify(data.metadata ?? {}),
+      nextSort
     ]
+  );
+  return true;
+}
+
+// ──────────── Root / Primary ────────────
+
+export async function setRootBinding(serviceId: string, assetId: string): Promise<boolean> {
+  // Clear root from all other bindings for this service
+  await query(
+    `UPDATE service_asset_bindings
+     SET sort_order = 1, updated_at = now()
+     WHERE service_id = $1 AND asset_id != $2 AND deleted_at IS NULL AND sort_order = 0`,
+    [serviceId, assetId]
+  );
+  // Set this asset as root
+  await query(
+    `UPDATE service_asset_bindings
+     SET sort_order = 0, updated_at = now()
+     WHERE service_id = $1 AND asset_id = $2 AND deleted_at IS NULL`,
+    [serviceId, assetId]
   );
   return true;
 }

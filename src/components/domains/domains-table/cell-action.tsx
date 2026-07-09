@@ -9,18 +9,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Icons } from '@/components/icons';
 import { deleteDomainMutation } from '@/lib/cmdb/domains/mutations';
+import { domainKeys } from '@/lib/cmdb/domains/queries';
 import type { Domain } from '@/lib/cmdb/domains/types';
 
 export function CellAction({ data }: { data: Domain }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const deleteMutation = useMutation({
     ...deleteDomainMutation,
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: domainKeys.all });
       toast.success(`Domain "${data.name}" deleted`);
     },
     onError: () => {

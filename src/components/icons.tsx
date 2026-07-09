@@ -224,5 +224,6 @@ export const Icons = {
   // Asset Management
   clipboardText: IconClipboardText,
   stack2: IconStack2,
-  asset: IconBox
+  asset: IconBox,
+  star: IconStar
 };

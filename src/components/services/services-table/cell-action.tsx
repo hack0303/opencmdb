@@ -9,18 +9,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Icons } from '@/components/icons';
 import { deleteServiceMutation } from '@/lib/cmdb/services/mutations';
+import { serviceKeys } from '@/lib/cmdb/services/queries';
 import type { Service } from '@/lib/cmdb/services/types';
 
 export function CellAction({ data }: { data: Service }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const deleteMutation = useMutation({
     ...deleteServiceMutation,
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: serviceKeys.all });
       toast.success(`Service "${data.name}" deleted`);
     },
     onError: () => {

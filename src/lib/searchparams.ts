@@ -13,6 +13,7 @@ export const searchParams = {
   category: parseAsString,
   role: parseAsString,
   state: parseAsString,
+  domain: parseAsString,
   sort: parseAsString
   // advanced filter
   // filters: getFiltersStateParser().withDefault([]),

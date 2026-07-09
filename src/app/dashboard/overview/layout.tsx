@@ -7,6 +7,9 @@ import Link from 'next/link';
 import React from 'react';
 import { query } from '@/lib/db';
 
+// This page requires live DB data — do not statically generate at build time
+export const dynamic = 'force-dynamic';
+
 type SD = {
   id: string;
   name: string;
@@ -18,65 +21,99 @@ type Cap = { name: string; count: number };
 type StateDist = { state: string; count: number };
 
 async function getOverviewData() {
-  const [stats, domains, linkTypes, capabilities, states] = await Promise.all([
-    Promise.all([
-      query<{ count: string }>(
-        'SELECT COUNT(*)::text AS count FROM domains WHERE deleted_at IS NULL'
+  try {
+    const [stats, domains, linkTypes, capabilities, states, boundTrend] = await Promise.all([
+      Promise.all([
+        query<{ count: string }>(
+          'SELECT COUNT(*)::text AS count FROM domains WHERE deleted_at IS NULL'
+        ),
+        query<{ count: string }>(
+          'SELECT COUNT(*)::text AS count FROM services WHERE deleted_at IS NULL'
+        ),
+        query<{ count: string }>(
+          'SELECT COUNT(*)::text AS count FROM service_links WHERE deleted_at IS NULL'
+        ),
+        query<{ count: string }>(
+          'SELECT COUNT(DISTINCT asset_id)::text AS count FROM service_asset_bindings WHERE deleted_at IS NULL'
+        ),
+        query<{ count: string }>(
+          'SELECT COUNT(*)::text AS count FROM asset_instances WHERE deleted_at IS NULL'
+        )
+      ]),
+      query<SD>(
+        `SELECT 
+          s.id, s.name,
+          COUNT(DISTINCT svc.id)::int AS "serviceCount",
+          COUNT(DISTINCT sl.id)::int AS "linkCount",
+          COUNT(DISTINCT sab.asset_id)::int AS "boundAssetCount"
+        FROM domains s
+        LEFT JOIN services svc ON svc.domain_id = s.id AND svc.deleted_at IS NULL
+        LEFT JOIN service_links sl ON sl.domain_id = s.id AND sl.deleted_at IS NULL
+        LEFT JOIN service_asset_bindings sab ON sab.service_id = svc.id AND sab.deleted_at IS NULL
+        WHERE s.deleted_at IS NULL
+        GROUP BY s.id, s.name
+        ORDER BY s.sort_order ASC, s.name ASC`
       ),
-      query<{ count: string }>(
-        'SELECT COUNT(*)::text AS count FROM services WHERE deleted_at IS NULL'
+      query<{ linkType: string; count: string }>(
+        'SELECT link_type AS "linkType", COUNT(*)::text AS count FROM service_links WHERE deleted_at IS NULL GROUP BY link_type'
       ),
-      query<{ count: string }>(
-        'SELECT COUNT(*)::text AS count FROM service_links WHERE deleted_at IS NULL'
+      query<{ name: string; count: string }>(
+        `SELECT cap->>'name' AS "name", COUNT(*)::text AS "count"
+         FROM asset_instances, jsonb_array_elements(capabilities) AS cap
+         WHERE deleted_at IS NULL
+         GROUP BY cap->>'name'
+         ORDER BY COUNT(*) DESC
+         LIMIT 8`
       ),
-      query<{ count: string }>(
-        'SELECT COUNT(DISTINCT asset_id)::text AS count FROM service_asset_bindings WHERE deleted_at IS NULL'
+      query<{ state: string; count: string }>(
+        'SELECT current_state AS state, COUNT(*)::text AS count FROM asset_instances WHERE deleted_at IS NULL GROUP BY current_state ORDER BY COUNT(*) DESC'
       ),
-      query<{ count: string }>(
-        'SELECT COUNT(*)::text AS count FROM asset_instances WHERE deleted_at IS NULL'
+      // Trend: bound assets created in current 30d window vs previous 30d window
+      query<{ current_count: string; previous_count: string }>(
+        `SELECT
+           COUNT(DISTINCT CASE WHEN created_at >= now() - interval '30 days' THEN asset_id END)::text AS current_count,
+           COUNT(DISTINCT CASE WHEN created_at >= now() - interval '60 days' AND created_at < now() - interval '30 days' THEN asset_id END)::text AS previous_count
+         FROM service_asset_bindings
+         WHERE deleted_at IS NULL`
       )
-    ]),
-    query<SD>(
-      `SELECT 
-        s.id, s.name,
-        COUNT(DISTINCT svc.id)::int AS "serviceCount",
-        COUNT(DISTINCT sl.id)::int AS "linkCount",
-        COUNT(DISTINCT sab.asset_id)::int AS "boundAssetCount"
-      FROM domains s
-      LEFT JOIN services svc ON svc.subdomain_id = s.id AND svc.deleted_at IS NULL
-      LEFT JOIN service_links sl ON sl.subdomain_id = s.id AND sl.deleted_at IS NULL
-      LEFT JOIN service_asset_bindings sab ON sab.service_id = svc.id AND sab.deleted_at IS NULL
-      WHERE s.deleted_at IS NULL
-      GROUP BY s.id, s.name
-      ORDER BY s.sort_order ASC, s.name ASC`
-    ),
-    query<{ linkType: string; count: string }>(
-      'SELECT link_type AS "linkType", COUNT(*)::text AS count FROM service_links WHERE deleted_at IS NULL GROUP BY link_type'
-    ),
-    query<{ name: string; count: string }>(
-      `SELECT cap->>'name' AS "name", COUNT(*)::text AS "count"
-       FROM asset_instances, jsonb_array_elements(capabilities) AS cap
-       WHERE deleted_at IS NULL
-       GROUP BY cap->>'name'
-       ORDER BY COUNT(*) DESC
-       LIMIT 8`
-    ),
-    query<{ state: string; count: string }>(
-      'SELECT current_state AS state, COUNT(*)::text AS count FROM asset_instances WHERE deleted_at IS NULL GROUP BY current_state ORDER BY COUNT(*) DESC'
-    )
-  ]);
+    ]);
 
-  return {
-    domains: parseInt(stats[0][0]?.count ?? '0', 10),
-    services: parseInt(stats[1][0]?.count ?? '0', 10),
-    links: parseInt(stats[2][0]?.count ?? '0', 10),
-    boundAssets: parseInt(stats[3][0]?.count ?? '0', 10),
-    totalAssets: parseInt(stats[4][0]?.count ?? '0', 10),
-    domainRows: domains as unknown as SD[],
-    linkTypes: linkTypes as { linkType: string; count: string }[],
-    capabilities: capabilities as { name: string; count: string }[],
-    states: states as { state: string; count: string }[]
-  };
+    const boundCur = parseInt(boundTrend[0]?.current_count ?? '0', 10);
+    const boundPrev = parseInt(boundTrend[0]?.previous_count ?? '0', 10);
+    const boundTrendPct =
+      boundPrev > 0
+        ? Math.round(((boundCur - boundPrev) / boundPrev) * 100)
+        : boundCur > 0
+          ? 100
+          : 0;
+
+    return {
+      domains: parseInt(stats[0][0]?.count ?? '0', 10),
+      services: parseInt(stats[1][0]?.count ?? '0', 10),
+      links: parseInt(stats[2][0]?.count ?? '0', 10),
+      boundAssets: parseInt(stats[3][0]?.count ?? '0', 10),
+      totalAssets: parseInt(stats[4][0]?.count ?? '0', 10),
+      domainRows: domains as unknown as SD[],
+      linkTypes: linkTypes as { linkType: string; count: string }[],
+      capabilities: capabilities as { name: string; count: string }[],
+      states: states as { state: string; count: string }[],
+      boundTrendPct
+    };
+  } catch (error) {
+    console.error('Failed to load overview data, returning defaults:', error);
+    return {
+      domains: 0,
+      services: 0,
+      links: 0,
+      boundAssets: 0,
+      totalAssets: 0,
+      domainRows: [],
+      linkTypes: [],
+      capabilities: [],
+      states: [],
+      boundTrendPct: 0
+    };
+  }
 }
 
 export default async function OverViewLayout({
@@ -167,7 +204,25 @@ export default async function OverViewLayout({
                 <div>
                   <p className='text-xs text-muted-foreground'>Bound Assets</p>
                   <p className='text-2xl font-bold tabular-nums'>{d.boundAssets}</p>
-                  <p className='text-xs text-muted-foreground mt-0.5'>{boundPct}% of total</p>
+                  <p className='text-xs text-muted-foreground mt-0.5'>
+                    {boundPct}% of total
+                    <span
+                      className={`ml-1.5 inline-flex items-center gap-0.5 tabular-nums ${
+                        d.boundTrendPct > 0
+                          ? 'text-emerald-600'
+                          : d.boundTrendPct < 0
+                            ? 'text-red-500'
+                            : 'text-muted-foreground'
+                      }`}
+                    >
+                      {d.boundTrendPct > 0 ? (
+                        <Icons.trendingUp className='h-3 w-3' />
+                      ) : d.boundTrendPct < 0 ? (
+                        <Icons.trendingDown className='h-3 w-3' />
+                      ) : null}
+                      {d.boundTrendPct !== 0 && `${Math.abs(d.boundTrendPct)}%`}
+                    </span>
+                  </p>
                 </div>
               </CardContent>
             </Card>

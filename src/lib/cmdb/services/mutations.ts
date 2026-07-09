@@ -4,7 +4,7 @@
 
 import { mutationOptions } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
-import { createService, updateService, deleteService } from './service';
+import { createService, updateService, deleteService, setRootBinding } from './service';
 import { serviceKeys } from './queries';
 import type { ServiceMutationPayload } from './types';
 
@@ -25,6 +25,14 @@ export const updateServiceMutation = mutationOptions({
 
 export const deleteServiceMutation = mutationOptions({
   mutationFn: (id: string) => deleteService(id),
+  onSuccess: () => {
+    getQueryClient().invalidateQueries({ queryKey: serviceKeys.all });
+  }
+});
+
+export const setRootBindingMutation = mutationOptions({
+  mutationFn: ({ serviceId, assetId }: { serviceId: string; assetId: string }) =>
+    setRootBinding(serviceId, assetId),
   onSuccess: () => {
     getQueryClient().invalidateQueries({ queryKey: serviceKeys.all });
   }

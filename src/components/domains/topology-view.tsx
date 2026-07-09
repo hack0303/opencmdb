@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Icons } from '@/components/icons';
 import { useRouter } from 'next/navigation';
@@ -28,11 +28,78 @@ const EDGE_STYLES: Record<string, { color: string; dash: string; label: string }
 
 type Pos = { x: number; y: number };
 
-function initPositions(count: number, cx: number, cy: number, r: number): Pos[] {
-  return Array.from({ length: count }, (_, i) => {
-    const angle = (2 * Math.PI * i) / Math.max(count, 1) - Math.PI / 2;
-    return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
-  });
+function treePositions(
+  services: { id: string }[],
+  edges: { source: string; target: string }[],
+  startX: number,
+  startY: number,
+  gapX: number,
+  gapY: number
+): Pos[] {
+  const map = new Map(services.map((s, i) => [s.id, i]));
+  const positions: Pos[] = services.map(() => ({ x: 0, y: 0 }));
+
+  // Build adjacency: children for each node
+  const children = new Map<string, string[]>();
+  const hasParent = new Set<string>();
+  for (const e of edges) {
+    if (!children.has(e.source)) children.set(e.source, []);
+    children.get(e.source)!.push(e.target);
+    hasParent.add(e.target);
+  }
+
+  // Find roots (no incoming edges), fallback to first service
+  const roots = services.filter((s) => !hasParent.has(s.id));
+  if (roots.length === 0 && services.length > 0) roots.push(services[0]);
+
+  // Layered tree layout — top to bottom
+  const layers: string[][] = [];
+  let currentLayer = roots.map((r) => r.id);
+  const visited = new Set<string>();
+  while (currentLayer.length > 0) {
+    layers.push(currentLayer);
+    for (const id of currentLayer) visited.add(id);
+    const next: string[] = [];
+    for (const id of currentLayer) {
+      for (const child of children.get(id) || []) {
+        if (!visited.has(child) && !next.includes(child)) next.push(child);
+      }
+    }
+    currentLayer = next;
+  }
+
+  // Assign positions: layer index → row (y), node index in layer → column (x)
+  const assigned = new Set<string>();
+  for (let li = 0; li < layers.length; li++) {
+    const layer = layers[li];
+    const totalW = (layer.length - 1) * gapX;
+    const layerStartX = startX - totalW / 2;
+    for (let i = 0; i < layer.length; i++) {
+      const idx = map.get(layer[i]);
+      if (idx !== undefined) {
+        positions[idx] = {
+          x: layerStartX + i * gapX,
+          y: startY + li * gapY
+        };
+        assigned.add(layer[i]);
+      }
+    }
+  }
+
+  // Place unassigned services (no edges) below the tree
+  let leftoverIdx = 0;
+  const maxLayerY = layers.length > 0 ? (layers.length - 1) * gapY : 0;
+  for (let i = 0; i < services.length; i++) {
+    if (!assigned.has(services[i].id)) {
+      positions[i] = {
+        x: startX,
+        y: startY + maxLayerY + gapY + leftoverIdx * gapY
+      };
+      leftoverIdx++;
+    }
+  }
+
+  return positions;
 }
 
 export function TopologyView({
@@ -47,20 +114,64 @@ export function TopologyView({
   const router = useRouter();
   const { edges = [] } = topologyData;
 
-  const svgW = 800;
-  const svgH = 420;
-  const centerX = svgW / 2;
-  const centerY = svgH / 2;
-  const nodeW = 150;
-  const nodeH = 44;
-  const radius = 160;
-
+  const nodeW = 100;
+  const nodeH = 30;
   const nodeCount = services.length;
   const hasEdges = nodeCount > 0 && edges.length > 0;
 
-  const [positions, setPositions] = useState<Pos[]>(() =>
-    initPositions(nodeCount, centerX, centerY, radius)
+  // Tree layout dimensions (left-to-right)
+  const gapX = 280;
+  const gapY = 70;
+  const maxLayerSize = Math.max(
+    ...(() => {
+      const counts: number[] = [];
+      if (nodeCount === 0) return [1];
+      const children = new Map<string, string[]>();
+      const hasParent = new Set<string>();
+      for (const e of edges) {
+        if (!children.has(e.source)) children.set(e.source, []);
+        children.get(e.source)!.push(e.target);
+        hasParent.add(e.target);
+      }
+      const roots = services.filter((s) => !hasParent.has(s.id));
+      if (roots.length === 0 && services.length > 0) roots.push(services[0]);
+      let currentLayer = roots.map((r) => r.id);
+      const visited = new Set<string>();
+      while (currentLayer.length > 0) {
+        counts.push(currentLayer.length);
+        for (const id of currentLayer) visited.add(id);
+        const next: string[] = [];
+        for (const id of currentLayer) {
+          for (const child of children.get(id) || []) {
+            if (!visited.has(child) && !next.includes(child)) next.push(child);
+          }
+        }
+        currentLayer = next;
+      }
+      if (counts.length === 0) counts.push(nodeCount);
+      return counts;
+    })()
   );
+
+  const [positions, setPositions] = useState<Pos[]>(
+    treePositions(services, edges, 400, 40, gapX, gapY)
+  );
+
+  // Compute bounds from actual positions for SVG viewBox
+  const padX = 10;
+  const padY = 5;
+  const contentMinX = Math.min(...positions.map((p) => p.x)) - padX;
+  const contentMaxX = Math.max(...positions.map((p) => p.x)) + padX + nodeW;
+  const contentMinY = Math.min(...positions.map((p) => p.y)) - padY;
+  const contentMaxY = Math.max(...positions.map((p) => p.y)) + padY + nodeH;
+  const contentW = Math.max(400, contentMaxX - contentMinX);
+  const contentH = Math.max(200, contentMaxY - contentMinY);
+  // Add vertical padding to center the tree in the SVG
+  const extraV = Math.round(contentH * 0.04);
+  const svgW = contentW;
+  const svgH = contentH + extraV * 2;
+  const viewBoxX = contentMinX;
+  const viewBoxY = contentMinY - extraV;
 
   // ── Drag-to-move state ──
   const dragRef = useRef<{
@@ -77,12 +188,28 @@ export function TopologyView({
     sourceIdx: number;
     mouseX: number;
     mouseY: number;
+    dx: number;
+    dy: number;
   } | null>(null);
+  const [scale, setScale] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(
+    null
+  );
   const [linkDialog, setLinkDialog] = useState<{
     sourceId: string;
     targetId: string;
   } | null>(null);
   const [editEdge, setEditEdge] = useState<TopologyEdge | null>(null);
+  // Per-edge label offset (dx, dy) for dragging labels
+  const labelOffsets = useRef<Map<string, { dx: number; dy: number }>>(new Map());
+  const labelDragRef = useRef<{
+    edgeId: string;
+    startX: number;
+    startY: number;
+    origDx: number;
+    origDy: number;
+  } | null>(null);
   const queryClient = useQueryClient();
 
   const deleteLink = useMutation({
@@ -162,7 +289,15 @@ export function TopologyView({
       e.stopPropagation();
       e.preventDefault();
       const pt = getSVGPoint(e);
-      setLinkDrag({ sourceIdx: index, mouseX: pt.x, mouseY: pt.y });
+      // Store mouse position relative to source node center for direction
+      const src = positions[index];
+      setLinkDrag({
+        sourceIdx: index,
+        mouseX: pt.x,
+        mouseY: pt.y,
+        dx: pt.x - src.x,
+        dy: pt.y - src.y
+      });
     },
     [getSVGPoint]
   );
@@ -172,7 +307,7 @@ export function TopologyView({
     (e: React.MouseEvent) => {
       const pt = getSVGPoint(e);
 
-      // Update node drag
+      // Node drag takes priority over canvas pan
       const drag = dragRef.current;
       if (drag) {
         const dx = pt.x - drag.startX;
@@ -184,6 +319,26 @@ export function TopologyView({
           next[drag.index] = { x: drag.origX + dx, y: drag.origY + dy };
           return next;
         });
+        return;
+      }
+
+      // Canvas pan
+      const p = panRef.current;
+      if (p) {
+        setPan({
+          x: p.origX + ((pt.x - p.startX) / scale) * 0.3,
+          y: p.origY + ((pt.y - p.startY) / scale) * 0.3
+        });
+        return;
+      }
+
+      // Update label drag
+      const ld = labelDragRef.current;
+      if (ld) {
+        const dx = pt.x - ld.startX;
+        const dy = pt.y - ld.startY;
+        labelOffsets.current.set(ld.edgeId, { dx: ld.origDx + dx, dy: ld.origDy + dy });
+        setEditEdge((prev) => (prev ? { ...prev } : null)); // force re-render
         return;
       }
 
@@ -204,6 +359,18 @@ export function TopologyView({
           router.push(`/dashboard/services/${services[drag.index].id}`);
         }
         dragRef.current = null;
+        return;
+      }
+
+      // Canvas pan end
+      if (panRef.current) {
+        panRef.current = null;
+        return;
+      }
+
+      // Label drag end
+      if (labelDragRef.current) {
+        labelDragRef.current = null;
         return;
       }
 
@@ -250,16 +417,60 @@ export function TopologyView({
   }
 
   return (
-    <div className='w-full overflow-x-auto'>
+    <div className='w-full overflow-x-auto' suppressHydrationWarning>
+      {/* Zoom controls */}
+      <div className='sticky top-2 left-2 z-10 flex items-center gap-1 w-fit rounded-lg border bg-background/80 backdrop-blur-sm p-1 mb-2'>
+        <button
+          onClick={() => setScale((s) => Math.max(0.3, s - 0.2))}
+          className='p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground text-xs'
+          title='Zoom out'
+        >
+          −
+        </button>
+        <span className='text-xs tabular-nums w-10 text-center text-muted-foreground'>
+          {Math.round(scale * 100)}%
+        </span>
+        <button
+          onClick={() => setScale((s) => Math.min(3, s + 0.2))}
+          className='p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground text-xs'
+          title='Zoom in'
+        >
+          +
+        </button>
+        <button
+          onClick={() => setScale(1)}
+          className='p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground text-xs ml-1'
+          title='Reset zoom'
+        >
+          ⟲
+        </button>
+      </div>
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${svgW} ${svgH}`}
-        className='w-full max-w-[800px] h-auto mx-auto select-none'
+        viewBox={`${viewBoxX + (svgW - svgW / scale) / 2 + pan.x} ${viewBoxY + (svgH - svgH / scale) / 2 + pan.y} ${svgW / scale} ${svgH / scale}`}
+        className='w-full h-auto mx-auto select-none'
         xmlns='http://www.w3.org/2000/svg'
+        onMouseDown={(e) => {
+          // Start canvas pan only on background clicks (not nodes/edges)
+          const target = e.target as Element;
+          if (target === svgRef.current || target.closest('.canvas-bg')) {
+            const pt = getSVGPoint(e);
+            panRef.current = { startX: pt.x, startY: pt.y, origX: pan.x, origY: pan.y };
+          }
+        }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
+        {/* Background rect for canvas pan detection */}
+        <rect
+          className='canvas-bg'
+          x={-svgW}
+          y={-svgH}
+          width={svgW * 3}
+          height={svgH * 3}
+          fill='transparent'
+        />
         <defs>
           <filter id='sh' x='-20%' y='-20%' width='140%' height='140%'>
             <feDropShadow dx='0' dy='1' stdDeviation='2' floodOpacity='0.12' />
@@ -272,8 +483,22 @@ export function TopologyView({
             const src = positions[linkDrag.sourceIdx];
             return (
               <line
-                x1={src.x + nodeW / 2}
-                y1={src.y}
+                x1={
+                  src.x +
+                  (Math.abs(linkDrag.dx) > Math.abs(linkDrag.dy)
+                    ? linkDrag.dx > 0
+                      ? nodeW / 2
+                      : -nodeW / 2
+                    : 0)
+                }
+                y1={
+                  src.y +
+                  (Math.abs(linkDrag.dx) > Math.abs(linkDrag.dy)
+                    ? 0
+                    : linkDrag.dy > 0
+                      ? nodeH / 2
+                      : -nodeH / 2)
+                }
                 x2={linkDrag.mouseX}
                 y2={linkDrag.mouseY}
                 stroke='#94a3b8'
@@ -305,168 +530,236 @@ export function TopologyView({
               />
               <text
                 x={pos.x}
-                y={pos.y - 5}
+                y={pos.y}
                 textAnchor='middle'
                 dominantBaseline='middle'
                 className='fill-foreground'
-                fontSize='11'
+                fontSize='9'
                 fontWeight='600'
                 pointerEvents='none'
               >
                 {svc.name.length > 20 ? svc.name.slice(0, 18) + '…' : svc.name}
               </text>
-              <text
-                x={pos.x}
-                y={pos.y + 13}
-                textAnchor='middle'
-                dominantBaseline='middle'
-                className='fill-muted-foreground'
-                fontSize='9'
-                pointerEvents='none'
-              >
-                {svc.semanticRoles
-                  ?.slice(0, 2)
-                  .map((r: { role: string }) => r.role)
-                  .join(' · ') ?? ''}
-              </text>
+
+              {/* 4-direction link-drag dots */}
               <circle
-                cx={pos.x + nodeW / 2 + 2}
+                cx={pos.x + nodeW / 2}
                 cy={pos.y}
-                r={8}
-                className='fill-primary/20 stroke-primary cursor-crosshair'
-                strokeWidth={1.5}
+                r={4}
+                className='fill-muted-foreground/20 hover:fill-primary/60'
+                stroke='none'
+                style={{ cursor: 'crosshair' }}
                 onMouseDown={(e) => handleLinkDragStart(e, i)}
               />
-              <text
-                x={pos.x + nodeW / 2 + 2}
-                y={pos.y + 1}
-                textAnchor='middle'
-                dominantBaseline='middle'
-                className='fill-primary'
-                fontSize='10'
-                fontWeight='700'
-                pointerEvents='none'
-              >
-                ⚡
-              </text>
+              <circle
+                cx={pos.x - nodeW / 2}
+                cy={pos.y}
+                r={4}
+                className='fill-muted-foreground/20 hover:fill-primary/60'
+                stroke='none'
+                style={{ cursor: 'crosshair' }}
+                onMouseDown={(e) => handleLinkDragStart(e, i)}
+              />
+              <circle
+                cx={pos.x}
+                cy={pos.y - nodeH / 2}
+                r={4}
+                className='fill-muted-foreground/20 hover:fill-primary/60'
+                stroke='none'
+                style={{ cursor: 'crosshair' }}
+                onMouseDown={(e) => handleLinkDragStart(e, i)}
+              />
+              <circle
+                cx={pos.x}
+                cy={pos.y + nodeH / 2}
+                r={4}
+                className='fill-muted-foreground/20 hover:fill-primary/60'
+                stroke='none'
+                style={{ cursor: 'crosshair' }}
+                onMouseDown={(e) => handleLinkDragStart(e, i)}
+              />
             </g>
           );
         })}
 
-        {/* ── Edges + Arrows (after nodes so on top) ── */}
+        {/* ── Edges + Arrows with multi-link support ── */}
         {hasEdges &&
-          edges.map((edge) => {
-            const srcIdx = services.findIndex((s) => s.id === edge.source);
-            const tgtIdx = services.findIndex((s) => s.id === edge.target);
-            if (srcIdx < 0 || tgtIdx < 0) return null;
-            const src = positions[srcIdx];
-            const tgt = positions[tgtIdx];
-            const style = EDGE_STYLES[edge.type] ?? EDGE_STYLES.sync;
-            const dx = tgt.x - src.x;
-            const dy = tgt.y - src.y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            const gap = 14;
-            const offX = (dx / dist) * (nodeH / 2 + gap);
-            const offY = (dy / dist) * (nodeH / 2 + gap);
-            const endX = tgt.x - offX;
-            const endY = tgt.y - offY;
-            const aLen = 10,
-              aAng = 0.5,
-              angle = Math.atan2(dy, dx);
-            const ax1 = endX - aLen * Math.cos(angle - aAng);
-            const ay1 = endY - aLen * Math.sin(angle - aAng);
-            const ax2 = endX - aLen * Math.cos(angle + aAng);
-            const ay2 = endY - aLen * Math.sin(angle + aAng);
-            const mx = (src.x + offX + endX) / 2;
-            const my = (src.y + offY + endY) / 2;
-            return (
-              <g key={edge.id}>
-                <line
-                  x1={src.x + offX}
-                  y1={src.y + offY}
-                  x2={endX}
-                  y2={endY}
-                  stroke={style.color}
-                  strokeWidth={2}
-                  strokeDasharray={style.dash}
-                />
-                <polygon
-                  points={`${endX},${endY} ${ax1},${ay1} ${ax2},${ay2}`}
-                  fill={style.color}
-                />
-                <rect
-                  x={mx - 60}
-                  y={my - 12}
-                  width={120}
-                  height={24}
-                  rx={4}
-                  className='fill-card/90'
-                />
-                <text
-                  x={mx}
-                  y={my + 1}
-                  textAnchor='middle'
-                  dominantBaseline='middle'
-                  fill={style.color}
-                  fontSize='10'
-                  fontWeight='500'
-                  pointerEvents='none'
-                >
-                  {edge.label
-                    ? edge.label.length > 20
-                      ? edge.label.slice(0, 18) + '…'
-                      : edge.label
-                    : '—'}
-                </text>
-                <g
-                  style={{ cursor: 'pointer' }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setEditEdge(edge);
-                  }}
-                >
-                  <circle cx={mx + 55} cy={my - 8} r={6} className='fill-muted-foreground/20' />
-                  <text
-                    x={mx + 55}
-                    y={my - 7}
-                    textAnchor='middle'
-                    dominantBaseline='middle'
-                    className='fill-muted-foreground'
-                    fontSize='8'
-                    pointerEvents='none'
+          (() => {
+            // Group edges by source-target pair (undirected key)
+            const edgeGroups = new Map<string, typeof edges>();
+            for (const edge of edges) {
+              // Group by undirected pair (A↔B) so opposite-direction edges spread apart
+              const key = [edge.source, edge.target].sort().join('↔');
+              const group = edgeGroups.get(key) || [];
+              group.push(edge);
+              edgeGroups.set(key, group);
+            }
+
+            return Array.from(edgeGroups.entries()).flatMap(([_key, groupEdges]) => {
+              const first = groupEdges[0];
+              const srcIdx = services.findIndex((s) => s.id === first.source);
+              const tgtIdx = services.findIndex((s) => s.id === first.target);
+              if (srcIdx < 0 || tgtIdx < 0) return [];
+              const src = positions[srcIdx];
+              const tgt = positions[tgtIdx];
+              const dx = tgt.x - src.x;
+              const dy = tgt.y - src.y;
+              const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+              // Perpendicular unit (vertical offset for parallel edges)
+              const nx = -dy / dist;
+              const ny = dx / dist;
+              const aLen = 10,
+                aAng = 0.5,
+                angle = Math.atan2(dy, dx);
+
+              return groupEdges.map((edge, gi) => {
+                const multiCount = groupEdges.length;
+                const mid = multiCount - 1;
+                const offset = gi - mid / 2;
+                const spread = 40;
+                const pox = nx * offset * spread;
+                const poy = ny * offset * spread;
+
+                // Per-edge source/target for correct direction
+                const eSrcIdx = services.findIndex((s) => s.id === edge.source);
+                const eTgtIdx = services.findIndex((s) => s.id === edge.target);
+                const eSrc = positions[eSrcIdx];
+                const eTgt = positions[eTgtIdx];
+
+                // Determine connection sides for THIS edge's direction
+                const rdx = eTgt.x - eSrc.x;
+                const rdy = eTgt.y - eSrc.y;
+                const absDx = Math.abs(rdx);
+                const absDy = Math.abs(rdy);
+
+                let sOffX = 0,
+                  sOffY = 0,
+                  tOffX = 0,
+                  tOffY = 0;
+
+                if (absDx > absDy) {
+                  sOffX = rdx > 0 ? nodeW / 2 : -nodeW / 2;
+                  tOffX = rdx > 0 ? -nodeW / 2 : nodeW / 2;
+                } else {
+                  sOffY = rdy > 0 ? nodeH / 2 : -nodeH / 2;
+                  tOffY = rdy > 0 ? -nodeH / 2 : nodeH / 2;
+                }
+
+                // Fixed connection at node edge center, spread only the bezier control point
+                const startX = eSrc.x + sOffX;
+                const startY = eSrc.y + sOffY;
+                const eX = eTgt.x + tOffX;
+                const eY = eTgt.y + tOffY;
+
+                // Quadratic bezier control point — spread for parallel edges
+                const midX = (startX + eX) / 2 + pox * 2.5;
+                const midY = (startY + eY) / 2 + poy * 2.5;
+
+                // Arrow at end of bezier
+                const aT = 0.92;
+                const ax0 = (1 - aT) * (1 - aT) * startX + 2 * (1 - aT) * aT * midX + aT * aT * eX;
+                const ay0 = (1 - aT) * (1 - aT) * startY + 2 * (1 - aT) * aT * midY + aT * aT * eY;
+                const aDx = eX - ax0;
+                const aDy = eY - ay0;
+                const aDist = Math.sqrt(aDx * aDx + aDy * aDy) || 1;
+                const aAng2 = Math.atan2(aDy, aDx);
+                const ax1 = eX - aLen * Math.cos(aAng2 - aAng);
+                const ay1 = eY - aLen * Math.sin(aAng2 - aAng);
+                const ax2 = eX - aLen * Math.cos(aAng2 + aAng);
+                const ay2 = eY - aLen * Math.sin(aAng2 + aAng);
+
+                const style = EDGE_STYLES[edge.type] ?? EDGE_STYLES.sync;
+
+                return (
+                  <g
+                    key={edge.id}
+                    style={{ cursor: 'pointer' }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      setEditEdge(edge);
+                    }}
                   >
-                    ✎
-                  </text>
-                </g>
-                <g
-                  style={{ cursor: 'pointer' }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    if (confirm('Delete this link?')) deleteLink.mutate(edge);
-                  }}
-                >
-                  <circle cx={mx + 55} cy={my + 8} r={6} className='fill-destructive/20' />
-                  <text
-                    x={mx + 55}
-                    y={my + 9}
-                    textAnchor='middle'
-                    dominantBaseline='middle'
-                    className='fill-destructive'
-                    fontSize='8'
-                    pointerEvents='none'
-                  >
-                    ✕
-                  </text>
-                </g>
-              </g>
-            );
-          })}
+                    <title>{`${edge.label || '—'} (${edge.type})`}</title>
+                    {/* Invisible clickable tube */}
+                    <path
+                      d={`M ${startX} ${startY} Q ${midX} ${midY} ${eX} ${eY}`}
+                      fill='none'
+                      stroke='#fff'
+                      strokeWidth={20}
+                      strokeLinecap='round'
+                      opacity={0.01}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    {/* Visible edge path */}
+                    <path
+                      d={`M ${startX} ${startY} Q ${midX} ${midY} ${eX} ${eY}`}
+                      fill='none'
+                      stroke={style.color}
+                      strokeWidth={2}
+                      strokeDasharray={style.dash}
+                      style={{ pointerEvents: 'none' }}
+                    />
+                    <polygon
+                      points={`${eX},${eY} ${ax1},${ay1} ${ax2},${ay2}`}
+                      fill={style.color}
+                      style={{ pointerEvents: 'none' }}
+                    />
+                    {/* Edge label centered on the line */}
+                    {(() => {
+                      // Position label at the bezier control point (midX, midY) for clearer separation
+                      const lx = midX;
+                      const ly = midY;
+                      const labelText = (edge.label || '—') + (multiCount > 1 ? ` #${gi + 1}` : '');
+                      const lo = labelOffsets.current.get(edge.id) || { dx: 0, dy: 0 };
+                      const lpx = lx + lo.dx;
+                      const lpy = ly + lo.dy;
+                      return (
+                        <g
+                          style={{ cursor: 'grab' }}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            const pt = getSVGPoint(e);
+                            const cur = labelOffsets.current.get(edge.id) || { dx: 0, dy: 0 };
+                            labelDragRef.current = {
+                              edgeId: edge.id,
+                              startX: pt.x,
+                              startY: pt.y,
+                              origDx: cur.dx,
+                              origDy: cur.dy
+                            };
+                          }}
+                        >
+                          <text
+                            x={lpx}
+                            y={lpy + 4}
+                            textAnchor='middle'
+                            dominantBaseline='middle'
+                            fill={style.color}
+                            fontSize='7'
+                            fontWeight='600'
+                            stroke='#ffffff'
+                            strokeWidth='2'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            paintOrder='stroke'
+                            style={{ pointerEvents: 'none' }}
+                          >
+                            {labelText.length > 16 ? labelText.slice(0, 14) + '…' : labelText}
+                          </text>
+                        </g>
+                      );
+                    })()}
+                  </g>
+                );
+              });
+            });
+          })()}
 
         {/* No edges hint */}
         {!hasEdges && (
           <text
-            x={centerX}
-            y={400}
+            x={svgW / 2}
+            y={svgH - 20}
             textAnchor='middle'
             className='fill-muted-foreground'
             fontSize='11'
@@ -498,6 +791,7 @@ export function TopologyView({
           onSave={(linkType, label) => updateLink.mutate({ edge: editEdge, linkType, label })}
           onCancel={() => setEditEdge(null)}
           isPending={updateLink.isPending}
+          deleteLink={deleteLink}
         />
       )}
 
@@ -527,12 +821,14 @@ function EditLinkForm({
   edge,
   onSave,
   onCancel,
-  isPending
+  isPending,
+  deleteLink: delMut
 }: {
   edge: TopologyEdge;
   onSave: (linkType: string, label: string) => void;
   onCancel: () => void;
   isPending: boolean;
+  deleteLink: { mutate: (edge: TopologyEdge) => void; isPending: boolean };
 }) {
   const [linkType, setLinkType] = useState<string>(edge.type);
   const [label, setLabel] = useState(edge.label ?? '');
@@ -561,6 +857,21 @@ function EditLinkForm({
           onChange={(e) => setLabel(e.target.value)}
         />
       </div>
+      <Button
+        size='sm'
+        variant='destructive'
+        onClick={() => {
+          if (confirm('Delete this link?')) delMut.mutate(edge);
+        }}
+        disabled={delMut.isPending}
+      >
+        {delMut.isPending ? (
+          <Icons.spinner className='h-3 w-3 animate-spin mr-1' />
+        ) : (
+          <Icons.trash className='h-3 w-3 mr-1' />
+        )}
+        Delete
+      </Button>
       <Button size='sm' variant='outline' onClick={onCancel}>
         Cancel
       </Button>

@@ -93,13 +93,6 @@ export function DomainViewPage({
               </span>
             </CardTitle>
             <div className='flex gap-2'>
-              {services.length > 0 && (
-                <Link href={`/dashboard/services?domain=${domain.id}`}>
-                  <Button variant='outline' size='sm'>
-                    <Icons.stack2 className='mr-2 h-4 w-4' /> Manage
-                  </Button>
-                </Link>
-              )}
               <AddLinkDialog domainId={domain.id} services={services} />
             </div>
           </CardHeader>

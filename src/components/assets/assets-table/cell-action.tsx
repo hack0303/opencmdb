@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -16,15 +16,18 @@ import { Button } from '@/components/ui/button';
 import { AlertModal } from '@/components/modal/alert-modal';
 import { Icons } from '@/components/icons';
 import { deleteAssetMutation } from '@/lib/cmdb/assets/mutations';
+import { assetKeys } from '@/lib/cmdb/assets/queries';
 import type { AssetInstance } from '@/lib/cmdb/assets/types';
 
 export function CellAction({ data }: { data: AssetInstance }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const deleteMutation = useMutation({
     ...deleteAssetMutation,
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assetKeys.all });
       toast.success('Asset deleted');
       setDeleteOpen(false);
     },

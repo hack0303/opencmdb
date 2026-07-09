@@ -7,11 +7,12 @@ description: |
   "数据库迁移"、"查看资产"、"AI 视图"时触发。
 description_for_model: |
   OpenCMDB is a dynamic meta-model asset registration and management platform.
-  It exposes a remote MCP server (Streamable HTTP, port 3100) with 15 tools:
+  It exposes a remote MCP server (Streamable HTTP, port 3100) with 26 tools:
+  Domain CRUD (get_domains, get_domain, domain_ai_view, create_domain, update_domain, delete_domain),
+  Service CRUD (get_services, get_service, service_ai_view, create_service, update_service, delete_service, bind_asset_to_service, set_root_binding, add_link, add_links, remove_links),
   Asset CRUD (get_assets, get_asset, register_asset, update_asset, delete_asset),
   Template CRUD (get_templates, get_template, create_template, update_template, delete_template),
-  SQL query (sql_query, list_tables, describe_table),
-  Migration (run_migration, list_migrations).
+  SQL query (sql_query, list_tables, describe_table).
 
   MCP endpoint: http://192.168.1.14:3100/mcp
   Web UI:       http://192.168.1.14:3000
@@ -19,10 +20,19 @@ description_for_model: |
   Session management is stateful. If a session is stuck (e.g. "Server already initialized"),
   send POST /reset to clear the session, then re-initialize.
 
-  The database has two tables:
-    asset_templates  — defines asset types (PostgreSQL Database, GPU Node, etc.)
-                       with JSONB schema_def, state_mapping, capabilities
-    asset_instances  — concrete assets linked to a template, with JSONB attributes
+  Data model has three layers:
+    Domain (Layer 1) — business boundary with topology graph
+    Service (Layer 2) — bounded context wrapping assets with semantic meaning
+    Asset (Layer 3) — concrete resource instance linked to a template
+
+  Key tables:
+    domains             — business domain boundaries
+    services            — bounded contexts within domains
+    service_links       — sync/async relationships between services
+    service_asset_bindings — many-to-many links between services and assets
+    asset_templates     — defines asset types (PostgreSQL Database, GPU Node, etc.)
+                         with JSONB schema_def, state_mapping, capabilities
+    asset_instances     — concrete assets linked to a template, with JSONB attributes
 ---
 
 # OpenCMDB — MCP Server & Project Functions
@@ -34,9 +44,35 @@ AI Assistant ─── MCP (Streamable HTTP) ───→ OpenCMDB MCP Server (:
                                                     │
                                                     ↓
                                                PostgreSQL (opencmdb)
+                                               ├── domains
+                                               ├── services
+                                               ├── service_links
                                                ├── asset_templates
-                                               └── asset_instances
+                                               ├── asset_instances
+                                               └── service_asset_bindings
 ```
+
+## Three-Layer Hierarchy
+
+OpenCMDB models infrastructure in three abstraction layers:
+
+| Layer | Concept | Example | Role |
+|-------|---------|---------|------|
+| 1 | **Domain** (Business Boundary) | C-Land Base Domain | Macro business slice that groups services by capability. Contains complete topology graph (sync/async service relationships). |
+| 2 | **Service** (Bounded Context) | cland-user-service | Wraps assets with semantic meaning (roles, responsibilities). Provides the semantic abstraction layer that reduces AI token consumption. |
+| 3 | **Asset** (Concrete Resource) | cland-db-primary | Registered infrastructure instance (DB, GPU, gateway, etc.) with JSONB attributes defined by its template. |
+
+```
+Domain (Layer 1)
+  └── Service (Layer 2) — bounded context
+        └── Asset (Layer 3) — concrete resource instance
+```
+
+A **Domain** owns a topology graph (`topology_data` JSONB) that describes how its services connect via sync (REST/gRPC), async command (message), or async event relationships.
+
+A **Service** lives under one domain, can be bound to multiple assets via `service_asset_bindings`, and has semantic roles describing its responsibilities.
+
+An **Asset** is linked to exactly one template, which defines its valid attribute schema, lifecycle states, and capabilities.
 
 ## MCP Connection
 
@@ -70,7 +106,36 @@ All subsequent requests require `Mcp-Session-Id` + `Mcp-Protocol-Version` header
 | `/tools` | GET | List all tools (JSON) |
 | `/mcp` | POST | MCP JSON-RPC |
 
-## MCP Tools (15 tools)
+## MCP Tools (26 tools)
+
+### Domain Management
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `get_domains` | `search`, `tag`, `limit` | List business domains |
+| `get_domain` | `id` | Get single domain by ID |
+| `domain_ai_view` | `id` | Get AI-optimized YAML summary of a domain |
+| `create_domain` | `name`, `description`, `tags`, `topology_data`, `sort_order` | Create new domain |
+| `update_domain` | `id`, `name`, `description`, `tags`, `topology_data`, `sort_order` | Update domain |
+| `delete_domain` | `id` | Delete domain |
+
+### Service Management
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `get_services` | `search`, `domain_id`, `tag`, `limit` | List services (bounded contexts) |
+| `get_service` | `id` | Get single service by ID |
+| `service_ai_view` | `id` | Get AI-optimized YAML summary of a service |
+| `create_service` | `name`, `domain_id`, `description`, `tags`, `semantic_roles`, `sort_order` | Create new service |
+| `update_service` | `id`, `name`, `description`, `domain_id`, `tags`, `semantic_roles`, `sort_order` | Update service |
+| `delete_service` | `id` | Delete service |
+| `bind_asset_to_service` | `service_id`, `asset_id`, `binding_type`, `semantic_role` | Bind asset to a service |
+| `set_root_binding` | `service_id`, `asset_id` | Set an asset as root/primary for a service |
+| `add_link` | `domain_id`, `source_svc_id`, `target_svc_id`, `link_type`, `label` | Add topology link between services |
+| `add_links` | `links` (array of link objects) | Batch add multiple topology links at once |
+| `remove_links` | `domain_id`, `link_ids` (array) | Remove one or more topology links by ID |
+
+### Asset Management
 
 | Tool | Parameters | Description |
 |------|-----------|-------------|
@@ -79,16 +144,24 @@ All subsequent requests require `Mcp-Session-Id` + `Mcp-Protocol-Version` header
 | `register_asset` | `template_id`, `name`, `attributes`, `tags` | Register new asset |
 | `update_asset` | `id`, `attributes`, `current_state`, `tags` | Update existing asset |
 | `delete_asset` | `id` | Delete asset |
+
+### Template Management
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
 | `get_templates` | `category` | List templates |
 | `get_template` | `id` | Get single template |
 | `create_template` | `name`, `category`, `schema`, `tags` | Create new template |
 | `update_template` | `id`, `name`, `category`, `schema` | Update template |
 | `delete_template` | `id` | Delete template |
+
+### Database Utilities
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
 | `sql_query` | `sql` (SELECT/WITH), `params` | Read-only SQL queries |
 | `list_tables` | — | List all tables |
 | `describe_table` | `table` | Columns, types, indexes |
-| `run_migration` | `seed_only`, `schema_only`, `dry_run` | Apply SQL migrations |
-| `list_migrations` | — | List migration files |
 
 ## Database Schema
 

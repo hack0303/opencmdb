@@ -1,13 +1,15 @@
 'use client';
 
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useSuspenseQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Icons } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { serviceByIdOptions } from '@/lib/cmdb/services/queries';
+import { serviceByIdOptions, serviceKeys } from '@/lib/cmdb/services/queries';
+import { setRootBinding } from '@/lib/cmdb/services/service';
 import type { ServiceWithDetails } from '@/lib/cmdb/services/types';
 import { ServiceTopologyGraph } from './service-topology-graph';
 import { BindAssetDialog } from './bind-asset-dialog';
@@ -120,64 +122,95 @@ export function ServiceViewPage({ serviceId }: { serviceId: string }) {
           </CardContent>
         </Card>
 
-        {/* Bound Assets */}
-        <Card>
-          <CardHeader>
-            <div className='flex items-center justify-between'>
-              <CardTitle className='text-lg flex items-center gap-2'>
-                <Icons.asset className='h-4 w-4' />
-                Bound Assets ({service.assets?.length ?? 0})
-              </CardTitle>
-              <BindAssetDialog
-                serviceId={service.id}
-                boundAssetIds={(service.assets ?? []).map((a) => a.id)}
-              />
-            </div>
-          </CardHeader>
-          <CardContent>
-            {service.assets && service.assets.length > 0 ? (
-              <div className='divide-y'>
-                {service.assets.map((asset) => (
-                  <div key={asset.id} className='flex items-center justify-between py-2'>
-                    <div>
-                      <Link
-                        href={`/dashboard/assets/${asset.id}`}
-                        className='text-sm font-medium hover:underline'
-                      >
-                        {asset.name}
-                      </Link>
-                      <p className='text-xs text-muted-foreground'>{asset.templateName}</p>
-                    </div>
-                    <Badge
-                      variant={
-                        asset.currentState === 'RUNNING' || asset.currentState === 'READY'
-                          ? 'default'
-                          : 'secondary'
-                      }
-                      className='text-xs'
-                    >
-                      {asset.currentState}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className='flex flex-col items-center justify-center py-8 text-center text-muted-foreground'>
-                <Icons.asset className='h-8 w-8 mb-2 opacity-30' />
-                <p className='text-sm'>No assets bound to this service.</p>
-                <p className='text-xs mt-1'>
-                  Click &quot;Bind Asset&quot; to link an existing asset.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Bound Assets with Reorder */}
+        <BoundAssetsCard service={service} />
       </TabsContent>
 
       <TabsContent value='ai'>
         <ServiceAiView service={service} />
       </TabsContent>
     </Tabs>
+  );
+}
+
+function BoundAssetsCard({ service }: { service: ServiceWithDetails }) {
+  const queryClient = useQueryClient();
+  const assets = service.assets ?? [];
+
+  const rootMutation = useMutation({
+    mutationFn: (assetId: string) => setRootBinding(service.id, assetId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: serviceKeys.detail(service.id) });
+    }
+  });
+
+  // First asset (sort_order === 0) is the root
+  const rootAssetId = assets.length > 0 ? assets[0].id : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className='flex items-center justify-between'>
+          <CardTitle className='text-lg flex items-center gap-2'>
+            <Icons.asset className='h-4 w-4' />
+            Bound Assets ({assets.length})
+          </CardTitle>
+          <BindAssetDialog serviceId={service.id} boundAssetIds={assets.map((a) => a.id)} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        {assets.length > 0 ? (
+          <div className='divide-y'>
+            {assets.map((asset) => {
+              const isRoot = asset.id === rootAssetId;
+              return (
+                <div key={asset.id} className='flex items-center gap-3 py-2'>
+                  <button
+                    onClick={() => rootMutation.mutate(asset.id)}
+                    disabled={rootMutation.isPending}
+                    title={isRoot ? 'Root asset' : 'Set as root'}
+                    className='shrink-0'
+                  >
+                    <Icons.star
+                      className={`h-4 w-4 ${
+                        isRoot
+                          ? 'fill-amber-400 text-amber-400'
+                          : 'text-muted-foreground/30 hover:text-muted-foreground/60'
+                      }`}
+                    />
+                  </button>
+                  <div className='flex-1 min-w-0'>
+                    <Link
+                      href={`/dashboard/assets/${asset.id}`}
+                      className='text-sm font-medium hover:underline'
+                    >
+                      {asset.name}
+                    </Link>
+                    <p className='text-xs text-muted-foreground'>{asset.templateName}</p>
+                  </div>
+                  <Badge
+                    variant={
+                      asset.currentState === 'RUNNING' || asset.currentState === 'READY'
+                        ? 'default'
+                        : 'secondary'
+                    }
+                    className='text-xs'
+                  >
+                    {asset.currentState}
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className='flex flex-col items-center justify-center py-8 text-center text-muted-foreground'>
+            <Icons.asset className='h-8 w-8 mb-2 opacity-30' />
+            <p className='text-sm'>No assets bound to this service.</p>
+            <p className='text-xs mt-1'>Click &quot;Bind Asset&quot; to link an existing asset.</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

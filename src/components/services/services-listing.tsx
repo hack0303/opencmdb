@@ -9,7 +9,7 @@ export default function ServicesListingPage() {
   const page = searchParamsCache.get('page');
   const search = searchParamsCache.get('name');
   const pageLimit = searchParamsCache.get('perPage');
-  const domain = searchParamsCache.get('category') as string | undefined;
+  const domain = searchParamsCache.get('domain') as string | undefined;
   const sort = searchParamsCache.get('sort');
 
   const filters = {

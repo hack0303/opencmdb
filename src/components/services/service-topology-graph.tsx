@@ -1,5 +1,9 @@
 'use client';
 
+import { useState, useRef, useCallback } from 'react';
+
+type Pos = { x: number; y: number };
+
 export function ServiceTopologyGraph({
   serviceName,
   assets = []
@@ -7,27 +11,102 @@ export function ServiceTopologyGraph({
   serviceName: string;
   assets: { id: string; name: string; type: string; state: string }[];
 }) {
-  const centerX = 350;
-  const centerY = 200;
-  const nodeR = 28;
-
   const count = assets.length;
   const [root, ...children] = assets;
 
-  // Children arranged in semicircle below root
-  const arcRadius = 140;
+  // Compact layout
+  const centerX = 220;
+  const centerY = 50;
+  const nodeR = 16;
+  const arcRadius = 60;
+  const svgW = 450;
+  const svgH = 120;
+
   const childCount = Math.min(children.length, 7);
   const startAngle = -Math.PI * 0.6;
   const endAngle = Math.PI * 0.6;
   const angleStep = childCount > 1 ? (endAngle - startAngle) / (childCount - 1) : 0;
 
-  const childPositions = children.slice(0, 7).map((_, i) => {
+  const initialChildPositions = children.slice(0, 7).map((_, i) => {
     const angle = childCount > 1 ? startAngle + i * angleStep : 0;
     return {
       x: centerX + Math.sin(angle) * arcRadius,
-      y: centerY + Math.cos(angle) * arcRadius * 0.65 + 40
+      y: centerY + Math.cos(angle) * arcRadius * 0.6 + 20
     };
   });
+
+  const [rootPos, setRootPos] = useState<Pos>({ x: centerX, y: centerY });
+  const [childPositions, setChildPositions] = useState<Pos[]>(initialChildPositions);
+  const [scale, setScale] = useState(0.7);
+
+  const svgRef = useRef<SVGSVGElement>(null);
+  const dragRef = useRef<{
+    type: 'root' | 'child';
+    index: number;
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+    moved: boolean;
+  } | null>(null);
+
+  const getSVGPoint = useCallback((e: React.MouseEvent | MouseEvent) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    const svgPt = pt.matrixTransform(ctm.inverse());
+    return { x: svgPt.x, y: svgPt.y };
+  }, []);
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent, type: 'root' | 'child', index: number) => {
+      e.preventDefault();
+      const pt = getSVGPoint(e);
+      const pos = type === 'root' ? rootPos : childPositions[index];
+      dragRef.current = {
+        type,
+        index,
+        startX: pt.x,
+        startY: pt.y,
+        origX: pos.x,
+        origY: pos.y,
+        moved: false
+      };
+    },
+    [getSVGPoint, rootPos, childPositions]
+  );
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      const pt = getSVGPoint(e);
+      const dx = pt.x - drag.startX;
+      const dy = pt.y - drag.startY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
+      if (!drag.moved) return;
+      const newX = drag.origX + dx;
+      const newY = drag.origY + dy;
+      if (drag.type === 'root') {
+        setRootPos({ x: newX, y: newY });
+      } else {
+        setChildPositions((prev) => {
+          const next = [...prev];
+          next[drag.index] = { x: newX, y: newY };
+          return next;
+        });
+      }
+    },
+    [getSVGPoint]
+  );
+
+  const handleMouseUp = useCallback(() => {
+    dragRef.current = null;
+  }, []);
 
   if (count === 0) {
     return (
@@ -42,10 +121,41 @@ export function ServiceTopologyGraph({
 
   return (
     <div className='w-full overflow-x-auto'>
+      {/* Zoom controls */}
+      <div className='sticky top-2 left-2 z-10 flex items-center gap-1 w-fit rounded-lg border bg-background/80 backdrop-blur-sm p-1 mb-2'>
+        <button
+          onClick={() => setScale((s) => Math.max(0.3, s - 0.2))}
+          className='p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground text-xs'
+          title='Zoom out'
+        >
+          −
+        </button>
+        <span className='text-xs tabular-nums w-10 text-center text-muted-foreground'>
+          {Math.round(scale * 100)}%
+        </span>
+        <button
+          onClick={() => setScale((s) => Math.min(3, s + 0.2))}
+          className='p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground text-xs'
+          title='Zoom in'
+        >
+          +
+        </button>
+        <button
+          onClick={() => setScale(1)}
+          className='p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground text-xs ml-1'
+          title='Reset zoom'
+        >
+          ⟲
+        </button>
+      </div>
       <svg
-        viewBox='0 0 700 400'
-        className='w-full max-w-[700px] h-auto mx-auto'
+        ref={svgRef}
+        viewBox={`${(svgW * (1 - 1 / scale)) / 2} ${(svgH * (1 - 1 / scale)) / 2} ${svgW / scale} ${svgH / scale}`}
+        className='w-full h-auto mx-auto'
         xmlns='http://www.w3.org/2000/svg'
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
       >
         <defs>
           <marker
@@ -70,52 +180,58 @@ export function ServiceTopologyGraph({
           return (
             <line
               key={`e-${child.id}`}
-              x1={centerX}
-              y1={centerY + nodeR}
+              x1={rootPos.x}
+              y1={rootPos.y + nodeR}
               x2={pos.x}
               y2={pos.y - nodeR}
               stroke='#94a3b8'
-              strokeWidth={1.5}
-              strokeDasharray='4,3'
+              strokeWidth={1.2}
+              strokeDasharray='3,3'
               markerEnd='url(#arrow-child)'
             />
           );
         })}
 
         {/* ── Root (center) ── */}
-        <g filter='url(#shadow)'>
+        <g
+          filter='url(#shadow)'
+          onMouseDown={(e) => handleMouseDown(e, 'root', 0)}
+          style={{ cursor: 'grab' }}
+        >
           <rect
-            x={centerX - 75}
-            y={centerY - 30}
-            width={150}
-            height={60}
-            rx={14}
+            x={rootPos.x - 55}
+            y={rootPos.y - 22}
+            width={110}
+            height={44}
+            rx={10}
             className='fill-emerald-100 dark:fill-emerald-950/40'
             stroke='#22c55e'
-            strokeWidth={2}
+            strokeWidth={1.5}
           />
           <text
-            x={centerX}
-            y={centerY - 5}
+            x={rootPos.x}
+            y={rootPos.y - 4}
             textAnchor='middle'
             dominantBaseline='middle'
             className='fill-emerald-700 dark:fill-emerald-300'
-            fontSize='11'
+            fontSize='10'
             fontWeight='700'
+            pointerEvents='none'
           >
-            {root.name.length > 16 ? root.name.slice(0, 14) + '…' : root.name}
+            {root.name.length > 14 ? root.name.slice(0, 12) + '…' : root.name}
           </text>
           <text
-            x={centerX}
-            y={centerY + 14}
+            x={rootPos.x}
+            y={rootPos.y + 11}
             textAnchor='middle'
             dominantBaseline='middle'
             className='fill-muted-foreground'
-            fontSize='9'
+            fontSize='8'
+            pointerEvents='none'
           >
             {root.type}
             <tspan
-              dx='4'
+              dx='3'
               className={
                 root.state === 'RUNNING' || root.state === 'READY'
                   ? 'fill-green-500'
@@ -127,23 +243,24 @@ export function ServiceTopologyGraph({
           </text>
           {/* Service label on root */}
           <rect
-            x={centerX - 36}
-            y={centerY - 44}
-            width={72}
-            height={16}
-            rx={8}
+            x={rootPos.x - 28}
+            y={rootPos.y - 32}
+            width={56}
+            height={14}
+            rx={7}
             className='fill-primary/20'
           />
           <text
-            x={centerX}
-            y={centerY - 37}
+            x={rootPos.x}
+            y={rootPos.y - 26}
             textAnchor='middle'
             dominantBaseline='middle'
             className='fill-primary'
-            fontSize='9'
+            fontSize='8'
             fontWeight='600'
+            pointerEvents='none'
           >
-            {serviceName.length > 12 ? serviceName.slice(0, 10) + '…' : serviceName}
+            {serviceName.length > 10 ? serviceName.slice(0, 8) + '…' : serviceName}
           </text>
         </g>
 
@@ -151,40 +268,46 @@ export function ServiceTopologyGraph({
         {children.slice(0, 7).map((child, i) => {
           const pos = childPositions[i];
           return (
-            <g key={`c-${child.id}`}>
+            <g
+              key={`c-${child.id}`}
+              onMouseDown={(e) => handleMouseDown(e, 'child', i)}
+              style={{ cursor: 'grab' }}
+            >
               <rect
-                x={pos.x - 55}
+                x={pos.x - 42}
                 y={pos.y - nodeR}
-                width={110}
+                width={84}
                 height={nodeR * 2}
-                rx={8}
+                rx={6}
                 className='fill-sky-100 dark:fill-sky-950/40'
                 stroke='#3b82f6'
-                strokeWidth={1.5}
+                strokeWidth={1.2}
                 filter='url(#shadow)'
               />
               <text
                 x={pos.x}
-                y={pos.y - 3}
+                y={pos.y - 2}
                 textAnchor='middle'
                 dominantBaseline='middle'
                 className='fill-sky-700 dark:fill-sky-300'
-                fontSize='10'
+                fontSize='9'
                 fontWeight='600'
+                pointerEvents='none'
               >
-                {child.name.length > 14 ? child.name.slice(0, 12) + '…' : child.name}
+                {child.name.length > 12 ? child.name.slice(0, 10) + '…' : child.name}
               </text>
               <text
                 x={pos.x}
-                y={pos.y + 14}
+                y={pos.y + 11}
                 textAnchor='middle'
                 dominantBaseline='middle'
                 className='fill-muted-foreground'
-                fontSize='9'
+                fontSize='8'
+                pointerEvents='none'
               >
                 {child.type}
                 <tspan
-                  dx='4'
+                  dx='3'
                   className={
                     child.state === 'RUNNING' || child.state === 'READY'
                       ? 'fill-green-500'
@@ -201,12 +324,12 @@ export function ServiceTopologyGraph({
         {count > 8 && (
           <text
             x={centerX}
-            y={370}
+            y={svgH - 10}
             textAnchor='middle'
             className='fill-muted-foreground'
-            fontSize='11'
+            fontSize='10'
           >
-            +{count - 8} more assets (graph shows max 8)
+            +{count - 8} more
           </text>
         )}
       </svg>
