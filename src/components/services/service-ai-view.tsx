@@ -112,10 +112,26 @@ export default function ServiceAiView({ service }: { service: ServiceWithDetails
   const content = format === 'markdown' ? toMarkdown(service) : toYaml(service);
 
   const copy = async () => {
-    await navigator.clipboard.writeText(content);
-    setCopied(true);
-    toast.success('Copied');
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        // Fallback for HTTP / insecure context
+        const ta = document.createElement('textarea');
+        ta.value = content;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      toast.success('Copied');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy');
+    }
   };
 
   return (

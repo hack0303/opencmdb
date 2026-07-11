@@ -1,8 +1,21 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 
 type Pos = { x: number; y: number };
+
+// ── Layout constants ──
+const ROOT_W = 110;
+const ROOT_H = 44;
+const CHILD_W = 84;
+const CHILD_H = 32;
+const GAP_V = 28; // vertical gap between children
+const H_GAP = 120; // horizontal gap: root right → child left
+const PAD_TOP = 24;
+const PAD_BOTTOM = 24;
+const PAD_LEFT = 60; // left padding for root
+const PAD_RIGHT = 40;
+const MAX_VISIBLE = 12; // max children shown before "+N more"
 
 export function ServiceTopologyGraph({
   serviceName,
@@ -13,31 +26,29 @@ export function ServiceTopologyGraph({
 }) {
   const count = assets.length;
   const [root, ...children] = assets;
+  const visibleCount = Math.min(children.length, MAX_VISIBLE);
 
-  // Compact layout
-  const centerX = 220;
-  const centerY = 50;
-  const nodeR = 16;
-  const arcRadius = 60;
-  const svgW = 450;
-  const svgH = 120;
+  // ── Dynamic dimensions ──
+  const rootCenterX = PAD_LEFT + ROOT_W / 2;
+  const childCenterX = rootCenterX + ROOT_W / 2 + H_GAP + CHILD_W / 2;
 
-  const childCount = Math.min(children.length, 7);
-  const startAngle = -Math.PI * 0.6;
-  const endAngle = Math.PI * 0.6;
-  const angleStep = childCount > 1 ? (endAngle - startAngle) / (childCount - 1) : 0;
+  const { svgW, svgH, initialChildPositions, initialRootY } = useMemo(() => {
+    const contentH = visibleCount * CHILD_H + Math.max(0, visibleCount - 1) * GAP_V;
+    const h = Math.max(200, contentH + PAD_TOP + PAD_BOTTOM);
+    const w = Math.max(400, childCenterX + CHILD_W / 2 + PAD_RIGHT);
 
-  const initialChildPositions = children.slice(0, 7).map((_, i) => {
-    const angle = childCount > 1 ? startAngle + i * angleStep : 0;
-    return {
-      x: centerX + Math.sin(angle) * arcRadius,
-      y: centerY + Math.cos(angle) * arcRadius * 0.6 + 20
-    };
-  });
+    const startY = (h - contentH) / 2;
+    const positions = children.slice(0, MAX_VISIBLE).map((_, i) => ({
+      x: childCenterX,
+      y: startY + i * (CHILD_H + GAP_V) + CHILD_H / 2
+    }));
 
-  const [rootPos, setRootPos] = useState<Pos>({ x: centerX, y: centerY });
+    return { svgW: w, svgH: h, initialChildPositions: positions, initialRootY: h / 2 };
+  }, [visibleCount, childCenterX, children]);
+
+  const [rootPos, setRootPos] = useState<Pos>({ x: rootCenterX, y: initialRootY });
   const [childPositions, setChildPositions] = useState<Pos[]>(initialChildPositions);
-  const [scale, setScale] = useState(0.7);
+  const [scale, setScale] = useState(1);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<{
@@ -161,11 +172,11 @@ export function ServiceTopologyGraph({
           <marker
             id='arrow-child'
             viewBox='0 0 10 10'
-            refX='10'
+            refX='9'
             refY='5'
             markerWidth='7'
             markerHeight='7'
-            orient='auto-start-reverse'
+            orient='auto'
           >
             <path d='M 0 0 L 10 5 L 0 10 z' fill='#94a3b8' />
           </marker>
@@ -174,35 +185,37 @@ export function ServiceTopologyGraph({
           </filter>
         </defs>
 
-        {/* ── Edges: root → children ── */}
-        {children.slice(0, 7).map((child, i) => {
+        {/* ── Edges: root (right edge) → child (left edge) ── */}
+        {children.slice(0, MAX_VISIBLE).map((child, i) => {
           const pos = childPositions[i];
+          const sy = rootPos.y + (pos.y - rootPos.y) * 0.5;
           return (
-            <line
+            <path
               key={`e-${child.id}`}
-              x1={rootPos.x}
-              y1={rootPos.y + nodeR}
-              x2={pos.x}
-              y2={pos.y - nodeR}
+              d={`
+                M ${rootPos.x + ROOT_W / 2} ${rootPos.y}
+                L ${pos.x - CHILD_W / 2} ${pos.y}
+              `}
               stroke='#94a3b8'
               strokeWidth={1.2}
               strokeDasharray='3,3'
+              fill='none'
               markerEnd='url(#arrow-child)'
             />
           );
         })}
 
-        {/* ── Root (center) ── */}
+        {/* ── Root (left) ── */}
         <g
           filter='url(#shadow)'
           onMouseDown={(e) => handleMouseDown(e, 'root', 0)}
           style={{ cursor: 'grab' }}
         >
           <rect
-            x={rootPos.x - 55}
-            y={rootPos.y - 22}
-            width={110}
-            height={44}
+            x={rootPos.x - ROOT_W / 2}
+            y={rootPos.y - ROOT_H / 2}
+            width={ROOT_W}
+            height={ROOT_H}
             rx={10}
             className='fill-emerald-100 dark:fill-emerald-950/40'
             stroke='#22c55e'
@@ -210,7 +223,7 @@ export function ServiceTopologyGraph({
           />
           <text
             x={rootPos.x}
-            y={rootPos.y - 4}
+            y={rootPos.y - 5}
             textAnchor='middle'
             dominantBaseline='middle'
             className='fill-emerald-700 dark:fill-emerald-300'
@@ -218,11 +231,11 @@ export function ServiceTopologyGraph({
             fontWeight='700'
             pointerEvents='none'
           >
-            {root.name.length > 14 ? root.name.slice(0, 12) + '…' : root.name}
+            {root.name.length > 16 ? root.name.slice(0, 14) + '…' : root.name}
           </text>
           <text
             x={rootPos.x}
-            y={rootPos.y + 11}
+            y={rootPos.y + 10}
             textAnchor='middle'
             dominantBaseline='middle'
             className='fill-muted-foreground'
@@ -241,10 +254,10 @@ export function ServiceTopologyGraph({
               · {root.state}
             </tspan>
           </text>
-          {/* Service label on root */}
+          {/* Service label above root */}
           <rect
             x={rootPos.x - 28}
-            y={rootPos.y - 32}
+            y={rootPos.y - ROOT_H / 2 - 18}
             width={56}
             height={14}
             rx={7}
@@ -252,7 +265,7 @@ export function ServiceTopologyGraph({
           />
           <text
             x={rootPos.x}
-            y={rootPos.y - 26}
+            y={rootPos.y - ROOT_H / 2 - 11}
             textAnchor='middle'
             dominantBaseline='middle'
             className='fill-primary'
@@ -264,8 +277,8 @@ export function ServiceTopologyGraph({
           </text>
         </g>
 
-        {/* ── Children ── */}
-        {children.slice(0, 7).map((child, i) => {
+        {/* ── Children (right column) ── */}
+        {children.slice(0, MAX_VISIBLE).map((child, i) => {
           const pos = childPositions[i];
           return (
             <g
@@ -274,10 +287,10 @@ export function ServiceTopologyGraph({
               style={{ cursor: 'grab' }}
             >
               <rect
-                x={pos.x - 42}
-                y={pos.y - nodeR}
-                width={84}
-                height={nodeR * 2}
+                x={pos.x - CHILD_W / 2}
+                y={pos.y - CHILD_H / 2}
+                width={CHILD_W}
+                height={CHILD_H}
                 rx={6}
                 className='fill-sky-100 dark:fill-sky-950/40'
                 stroke='#3b82f6'
@@ -286,7 +299,7 @@ export function ServiceTopologyGraph({
               />
               <text
                 x={pos.x}
-                y={pos.y - 2}
+                y={pos.y - 3}
                 textAnchor='middle'
                 dominantBaseline='middle'
                 className='fill-sky-700 dark:fill-sky-300'
@@ -294,11 +307,11 @@ export function ServiceTopologyGraph({
                 fontWeight='600'
                 pointerEvents='none'
               >
-                {child.name.length > 12 ? child.name.slice(0, 10) + '…' : child.name}
+                {child.name.length > 14 ? child.name.slice(0, 12) + '…' : child.name}
               </text>
               <text
                 x={pos.x}
-                y={pos.y + 11}
+                y={pos.y + 10}
                 textAnchor='middle'
                 dominantBaseline='middle'
                 className='fill-muted-foreground'
@@ -321,16 +334,30 @@ export function ServiceTopologyGraph({
           );
         })}
 
-        {count > 8 && (
-          <text
-            x={centerX}
-            y={svgH - 10}
-            textAnchor='middle'
-            className='fill-muted-foreground'
-            fontSize='10'
-          >
-            +{count - 8} more
-          </text>
+        {/* ── Overflow indicator ── */}
+        {count > MAX_VISIBLE && (
+          <g>
+            <rect
+              x={childCenterX - CHILD_W / 2}
+              y={initialChildPositions[visibleCount - 1].y + CHILD_H / 2 + 6}
+              width={CHILD_W}
+              height={22}
+              rx={6}
+              className='fill-muted/30 stroke-muted-foreground/20'
+              strokeWidth={1}
+              strokeDasharray='3,2'
+            />
+            <text
+              x={childCenterX}
+              y={initialChildPositions[visibleCount - 1].y + CHILD_H / 2 + 18}
+              textAnchor='middle'
+              dominantBaseline='middle'
+              className='fill-muted-foreground'
+              fontSize='10'
+            >
+              +{count - MAX_VISIBLE} more
+            </text>
+          </g>
         )}
       </svg>
 

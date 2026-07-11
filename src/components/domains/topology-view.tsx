@@ -28,78 +28,108 @@ const EDGE_STYLES: Record<string, { color: string; dash: string; label: string }
 
 type Pos = { x: number; y: number };
 
-function treePositions(
+// ── Force-directed layout ──
+// Nodes repel each other (Coulomb), edges attract (Hooke), gravity centers.
+// Runs in ~80 iterations with cooling. Naturally avoids edge-node crossings
+// and node overlaps for graphs with cycles.
+
+function forceLayout(
   services: { id: string }[],
   edges: { source: string; target: string }[],
-  startX: number,
-  startY: number,
-  gapX: number,
-  gapY: number
+  virtualW: number,
+  virtualH: number
 ): Pos[] {
-  const map = new Map(services.map((s, i) => [s.id, i]));
-  const positions: Pos[] = services.map(() => ({ x: 0, y: 0 }));
+  const n = services.length;
+  if (n === 0) return [];
 
-  // Build adjacency: children for each node
-  const children = new Map<string, string[]>();
-  const hasParent = new Set<string>();
+  // Random initial positions spread across the virtual space
+  const pos: Pos[] = services.map(() => ({
+    x: virtualW * 0.15 + Math.random() * virtualW * 0.7,
+    y: virtualH * 0.15 + Math.random() * virtualH * 0.7
+  }));
+
+  const centerX = virtualW / 2;
+  const centerY = virtualH / 2;
+  const idealEdgeLen = Math.min(virtualW, virtualH) * 0.3; // target edge length
+  const repulsion = 25000;
+  const attraction = 0.005;
+  const gravity = 0.006;
+  const damping = 0.55;
+  const iterations = 80;
+
+  // Build undirected adjacency
+  const adj = new Map<string, Set<string>>();
+  for (const s of services) adj.set(s.id, new Set());
   for (const e of edges) {
-    if (!children.has(e.source)) children.set(e.source, []);
-    children.get(e.source)!.push(e.target);
-    hasParent.add(e.target);
+    adj.get(e.source)?.add(e.target);
+    adj.get(e.target)?.add(e.source);
   }
 
-  // Find roots (no incoming edges), fallback to first service
-  const roots = services.filter((s) => !hasParent.has(s.id));
-  if (roots.length === 0 && services.length > 0) roots.push(services[0]);
+  const vel: Pos[] = Array.from({ length: n }, () => ({ x: 0, y: 0 }));
 
-  // Layered tree layout — top to bottom
-  const layers: string[][] = [];
-  let currentLayer = roots.map((r) => r.id);
-  const visited = new Set<string>();
-  while (currentLayer.length > 0) {
-    layers.push(currentLayer);
-    for (const id of currentLayer) visited.add(id);
-    const next: string[] = [];
-    for (const id of currentLayer) {
-      for (const child of children.get(id) || []) {
-        if (!visited.has(child) && !next.includes(child)) next.push(child);
+  for (let iter = 0; iter < iterations; iter++) {
+    const force: Pos[] = Array.from({ length: n }, () => ({ x: 0, y: 0 }));
+    const cooling = 1 - (iter / iterations) * 0.85;
+
+    // Repulsion: every node repels every other node
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        let dx = pos[j].x - pos[i].x;
+        let dy = pos[j].y - pos[i].y;
+        const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 5);
+        const f = repulsion / (dist * dist);
+        const fx = (dx / dist) * f;
+        const fy = (dy / dist) * f;
+        force[i].x -= fx;
+        force[i].y -= fy;
+        force[j].x += fx;
+        force[j].y += fy;
       }
     }
-    currentLayer = next;
-  }
 
-  // Assign positions: layer index → row (y), node index in layer → column (x)
-  const assigned = new Set<string>();
-  for (let li = 0; li < layers.length; li++) {
-    const layer = layers[li];
-    const totalW = (layer.length - 1) * gapX;
-    const layerStartX = startX - totalW / 2;
-    for (let i = 0; i < layer.length; i++) {
-      const idx = map.get(layer[i]);
-      if (idx !== undefined) {
-        positions[idx] = {
-          x: layerStartX + i * gapX,
-          y: startY + li * gapY
-        };
-        assigned.add(layer[i]);
-      }
+    // Attraction: edges pull connected nodes together
+    for (const e of edges) {
+      const si = services.findIndex((s) => s.id === e.source);
+      const ti = services.findIndex((s) => s.id === e.target);
+      if (si < 0 || ti < 0) continue;
+      let dx = pos[ti].x - pos[si].x;
+      let dy = pos[ti].y - pos[si].y;
+      const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 5);
+      const f = attraction * (dist - idealEdgeLen);
+      const fx = (dx / dist) * f;
+      const fy = (dy / dist) * f;
+      force[si].x += fx;
+      force[si].y += fy;
+      force[ti].x -= fx;
+      force[ti].y -= fy;
+    }
+
+    // Gravity: pull toward center so graph doesn't drift
+    for (let i = 0; i < n; i++) {
+      force[i].x += (centerX - pos[i].x) * gravity;
+      force[i].y += (centerY - pos[i].y) * gravity;
+    }
+
+    // Apply forces with velocity damping
+    for (let i = 0; i < n; i++) {
+      vel[i].x = (vel[i].x + force[i].x) * damping * cooling;
+      vel[i].y = (vel[i].y + force[i].y) * damping * cooling;
+      pos[i].x += vel[i].x;
+      pos[i].y += vel[i].y;
     }
   }
 
-  // Place unassigned services (no edges) below the tree
-  let leftoverIdx = 0;
-  const maxLayerY = layers.length > 0 ? (layers.length - 1) * gapY : 0;
-  for (let i = 0; i < services.length; i++) {
-    if (!assigned.has(services[i].id)) {
-      positions[i] = {
-        x: startX,
-        y: startY + maxLayerY + gapY + leftoverIdx * gapY
-      };
-      leftoverIdx++;
-    }
+  // Center the result
+  const cx = pos.reduce((s, p) => s + p.x, 0) / n;
+  const cy = pos.reduce((s, p) => s + p.y, 0) / n;
+  const ox = centerX - cx;
+  const oy = centerY - cy;
+  for (const p of pos) {
+    p.x += ox;
+    p.y += oy;
   }
 
-  return positions;
+  return pos;
 }
 
 export function TopologyView({
@@ -119,42 +149,12 @@ export function TopologyView({
   const nodeCount = services.length;
   const hasEdges = nodeCount > 0 && edges.length > 0;
 
-  // Tree layout dimensions (left-to-right)
-  const gapX = 280;
-  const gapY = 70;
-  const maxLayerSize = Math.max(
-    ...(() => {
-      const counts: number[] = [];
-      if (nodeCount === 0) return [1];
-      const children = new Map<string, string[]>();
-      const hasParent = new Set<string>();
-      for (const e of edges) {
-        if (!children.has(e.source)) children.set(e.source, []);
-        children.get(e.source)!.push(e.target);
-        hasParent.add(e.target);
-      }
-      const roots = services.filter((s) => !hasParent.has(s.id));
-      if (roots.length === 0 && services.length > 0) roots.push(services[0]);
-      let currentLayer = roots.map((r) => r.id);
-      const visited = new Set<string>();
-      while (currentLayer.length > 0) {
-        counts.push(currentLayer.length);
-        for (const id of currentLayer) visited.add(id);
-        const next: string[] = [];
-        for (const id of currentLayer) {
-          for (const child of children.get(id) || []) {
-            if (!visited.has(child) && !next.includes(child)) next.push(child);
-          }
-        }
-        currentLayer = next;
-      }
-      if (counts.length === 0) counts.push(nodeCount);
-      return counts;
-    })()
-  );
+  // Force-directed layout — auto-spreads in virtual space, viewBox adapts
+  const VIRTUAL_W = 1600;
+  const VIRTUAL_H = 1200;
 
-  const [positions, setPositions] = useState<Pos[]>(
-    treePositions(services, edges, 400, 40, gapX, gapY)
+  const [positions, setPositions] = useState<Pos[]>(() =>
+    forceLayout(services, edges, VIRTUAL_W, VIRTUAL_H)
   );
 
   // Compute bounds from actual positions for SVG viewBox
@@ -731,20 +731,20 @@ export function TopologyView({
                         >
                           <text
                             x={lpx}
-                            y={lpy + 4}
+                            y={lpy + 3}
                             textAnchor='middle'
                             dominantBaseline='middle'
                             fill={style.color}
-                            fontSize='7'
-                            fontWeight='600'
+                            fontSize='6'
+                            fontWeight='500'
                             stroke='#ffffff'
-                            strokeWidth='2'
+                            strokeWidth='1.5'
                             strokeLinecap='round'
                             strokeLinejoin='round'
                             paintOrder='stroke'
                             style={{ pointerEvents: 'none' }}
                           >
-                            {labelText.length > 16 ? labelText.slice(0, 14) + '…' : labelText}
+                            {labelText}
                           </text>
                         </g>
                       );
